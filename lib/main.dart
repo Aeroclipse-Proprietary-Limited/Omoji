@@ -1,5 +1,6 @@
 // lib/main.dart
 
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:ui'; // Required for ImageFilter.blur
@@ -11,48 +12,85 @@ import 'package:window_manager/window_manager.dart';
 
 final ValueNotifier<ThemeMode> themeNotifier = ValueNotifier(ThemeMode.dark);
 
+class ClipboardItem {
+  String text;
+  bool isPinned;
+  int timestamp;
+
+  ClipboardItem({
+    required this.text,
+    this.isPinned = false,
+    int? timestamp,
+  }) : timestamp = timestamp ?? DateTime.now().millisecondsSinceEpoch;
+
+  Map<String, dynamic> toJson() => {
+    'text': text,
+    'isPinned': isPinned,
+    'timestamp': timestamp,
+  };
+
+  factory ClipboardItem.fromJson(Map<String, dynamic> json) => ClipboardItem(
+    text: json['text'] as String,
+    isPinned: json['isPinned'] as bool? ?? false,
+    timestamp: json['timestamp'] as int?,
+  );
+}
+
 class AppSettings {
   static File get _configFile {
     final home = Platform.environment['HOME'] ?? '';
     return File('$home/.config/omoji/settings.json');
   }
 
-  static Future<ThemeMode> loadTheme() async {
+  static Future<Map<String, dynamic>> loadSettings() async {
     try {
       final file = _configFile;
       if (await file.exists()) {
         final content = await file.readAsString();
-        final json = jsonDecode(content) as Map<String, dynamic>;
-        final themeName = json['theme'] as String?;
-        if (themeName == 'light') return ThemeMode.light;
-        if (themeName == 'dark') return ThemeMode.dark;
-        if (themeName == 'system') return ThemeMode.system;
+        return jsonDecode(content) as Map<String, dynamic>;
       }
     } catch (e) {
       debugPrint('Failed to load settings: $e');
     }
-    return ThemeMode.dark; // Default theme
+    return {};
   }
 
-  static Future<void> saveTheme(ThemeMode themeMode) async {
+  static Future<void> saveSettings({
+    ThemeMode? theme,
+    List<ClipboardItem>? clipboardHistory,
+    bool? privateMode,
+  }) async {
     try {
       final file = _configFile;
       if (!await file.parent.exists()) {
         await file.parent.create(recursive: true);
       }
-      String themeName;
-      switch (themeMode) {
-        case ThemeMode.light:
-          themeName = 'light';
-          break;
-        case ThemeMode.dark:
-          themeName = 'dark';
-          break;
-        case ThemeMode.system:
-          themeName = 'system';
-          break;
+      
+      Map<String, dynamic> current = {};
+      if (await file.exists()) {
+        try {
+          final content = await file.readAsString();
+          current = jsonDecode(content) as Map<String, dynamic>;
+        } catch (_) {}
       }
-      await file.writeAsString(jsonEncode({'theme': themeName}));
+
+      if (theme != null) {
+        String themeName;
+        switch (theme) {
+          case ThemeMode.light: themeName = 'light'; break;
+          case ThemeMode.dark: themeName = 'dark'; break;
+          case ThemeMode.system: themeName = 'system'; break;
+        }
+        current['theme'] = themeName;
+      }
+      if (clipboardHistory != null) {
+        current['clipboardHistory'] = clipboardHistory.map((item) => item.toJson()).toList();
+      }
+      if (privateMode != null) {
+        current['privateMode'] = privateMode;
+      }
+
+      await file.writeAsString(jsonEncode(current));
     } catch (e) {
       debugPrint('Failed to save settings: $e');
     }
@@ -63,13 +101,18 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await windowManager.ensureInitialized();
 
-  // Load the persisted theme settings
-  final savedTheme = await AppSettings.loadTheme();
-  themeNotifier.value = savedTheme;
+  // Load the persisted settings
+  final settings = await AppSettings.loadSettings();
+  
+  ThemeMode initialTheme = ThemeMode.dark;
+  final themeName = settings['theme'] as String?;
+  if (themeName == 'light') initialTheme = ThemeMode.light;
+  if (themeName == 'system') initialTheme = ThemeMode.system;
+  themeNotifier.value = initialTheme;
 
   // Listen to changes to save the theme dynamically
   themeNotifier.addListener(() {
-    AppSettings.saveTheme(themeNotifier.value);
+    AppSettings.saveSettings(theme: themeNotifier.value);
   });
 
   WindowOptions windowOptions = const WindowOptions(
@@ -154,6 +197,15 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
   // Track recently clicked emojis purely in runtime memory
   final List<String> _recentEmojis = [];
 
+  // Clipboard Manager State
+  bool _privateMode = false;
+  List<ClipboardItem> _clipboardHistory = [];
+  String _selectedTab = 'emojis'; // 'emojis' or 'clipboard'
+  String? _lastClipboardText;
+  Timer? _clipboardTimer;
+  int? _editingIndex;
+  final TextEditingController _editController = TextEditingController();
+
   @override
   void initState() {
     super.initState();
@@ -163,6 +215,9 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
         _searchQuery = _searchController.text.toLowerCase().trim();
       });
     });
+
+    _loadClipboardSettings();
+    _startClipboardMonitoring();
   }
 
   @override
@@ -170,6 +225,8 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
     windowManager.removeListener(this); 
     _searchController.dispose();
     _focusNode.dispose();
+    _clipboardTimer?.cancel();
+    _editController.dispose();
     super.dispose();
   }
 
@@ -178,16 +235,21 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
     setState(() {
       _focusNode.requestFocus();
     });
+    _checkClipboard();
   }
 
   @override
   void onWindowBlur() async {
     await windowManager.hide();
     _searchController.clear();
+    setState(() {
+      _editingIndex = null;
+    });
   }
 
   void _handleEmojiSelection(String emoji) async {
     await Clipboard.setData(ClipboardData(text: emoji));
+    _lastClipboardText = emoji; // Prevent immediately adding it to clipboard history
     
     setState(() {
       _recentEmojis.remove(emoji); 
@@ -207,6 +269,370 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
     } catch (e) {
       debugPrint("Wayland 'wtype' text injection tool error: $e");
     }
+  }
+
+  Future<void> _loadClipboardSettings() async {
+    final settings = await AppSettings.loadSettings();
+    setState(() {
+      _privateMode = settings['privateMode'] as bool? ?? false;
+      final historyRaw = settings['clipboardHistory'] as List<dynamic>?;
+      if (historyRaw != null) {
+        _clipboardHistory = historyRaw
+            .map((item) => ClipboardItem.fromJson(item as Map<String, dynamic>))
+            .toList();
+      }
+    });
+  }
+
+  void _startClipboardMonitoring() {
+    _clipboardTimer = Timer.periodic(const Duration(seconds: 1), (timer) async {
+      await _checkClipboard();
+    });
+  }
+
+  Future<void> _checkClipboard() async {
+    if (_privateMode) return;
+    try {
+      final data = await Clipboard.getData(Clipboard.kTextPlain);
+      if (data != null && data.text != null && data.text!.isNotEmpty) {
+        final text = data.text!;
+        if (text != _lastClipboardText) {
+          _lastClipboardText = text;
+          
+          final existingIndex = _clipboardHistory.indexWhere((item) => item.text == text);
+          if (existingIndex != -1) {
+            final item = _clipboardHistory.removeAt(existingIndex);
+            item.timestamp = DateTime.now().millisecondsSinceEpoch;
+            _clipboardHistory.insert(0, item);
+          } else {
+            _clipboardHistory.insert(0, ClipboardItem(text: text));
+            if (_clipboardHistory.length > 50) {
+              int lastUnpinned = _clipboardHistory.lastIndexWhere((item) => !item.isPinned);
+              if (lastUnpinned != -1) {
+                _clipboardHistory.removeAt(lastUnpinned);
+              } else {
+                _clipboardHistory.removeLast();
+              }
+            }
+          }
+          
+          _sortHistory();
+          AppSettings.saveSettings(clipboardHistory: _clipboardHistory);
+          if (mounted) setState(() {});
+        }
+      }
+    } catch (e) {
+      debugPrint('Error checking clipboard: $e');
+    }
+  }
+
+  void _sortHistory() {
+    _clipboardHistory.sort((a, b) {
+      if (a.isPinned && !b.isPinned) return -1;
+      if (!a.isPinned && b.isPinned) return 1;
+      return b.timestamp.compareTo(a.timestamp);
+    });
+  }
+
+  void _handleClipboardSelection(String text) async {
+    await Clipboard.setData(ClipboardData(text: text));
+    _lastClipboardText = text;
+    
+    await windowManager.hide();
+    _searchController.clear();
+
+    await Future.delayed(const Duration(milliseconds: 150));
+    
+    try {
+      await Process.run('wtype', [text]);
+    } catch (e) {
+      debugPrint("Wayland 'wtype' text injection tool error: $e");
+    }
+  }
+
+  List<ClipboardItem> _filteredClipboardHistory() {
+    if (_searchQuery.isEmpty) return _clipboardHistory;
+    return _clipboardHistory
+        .where((item) => item.text.toLowerCase().contains(_searchQuery))
+        .toList();
+  }
+
+  void _saveEdit(int index, String val) {
+    if (val.trim().isNotEmpty) {
+      final filtered = _filteredClipboardHistory();
+      final originalItem = filtered[index];
+      final originalIndex = _clipboardHistory.indexOf(originalItem);
+      
+      setState(() {
+        _clipboardHistory[originalIndex].text = val.trim();
+        _clipboardHistory[originalIndex].timestamp = DateTime.now().millisecondsSinceEpoch;
+        _editingIndex = null;
+        _sortHistory();
+      });
+      AppSettings.saveSettings(clipboardHistory: _clipboardHistory);
+    }
+  }
+
+  void _togglePin(ClipboardItem item) {
+    setState(() {
+      item.isPinned = !item.isPinned;
+      item.timestamp = DateTime.now().millisecondsSinceEpoch;
+      _sortHistory();
+    });
+    AppSettings.saveSettings(clipboardHistory: _clipboardHistory);
+  }
+
+  void _deleteItem(ClipboardItem item) {
+    setState(() {
+      _clipboardHistory.remove(item);
+    });
+    AppSettings.saveSettings(clipboardHistory: _clipboardHistory);
+  }
+
+  void _clearHistory() {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF2E2E2E),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Text('Clear History', style: TextStyle(color: Colors.white)),
+          content: Text(
+            'Are you sure you want to clear your clipboard history? Pinned items will be kept.',
+            style: TextStyle(color: Colors.white.withValues(alpha: 0.7)),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context);
+                setState(() {
+                  _clipboardHistory.removeWhere((item) => !item.isPinned);
+                });
+                AppSettings.saveSettings(clipboardHistory: _clipboardHistory);
+              },
+              child: const Text('Clear', style: TextStyle(color: Colors.redAccent)),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildTabButton({
+    required String label,
+    required IconData icon,
+    required bool isActive,
+    required VoidCallback onTap,
+  }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? Colors.white : Colors.black87;
+    final activeBg = Colors.teal;
+    final inactiveBg = isDark ? Colors.white.withValues(alpha: 0.04) : Colors.black.withValues(alpha: 0.03);
+    final borderColor = isDark ? Colors.white.withValues(alpha: 0.08) : Colors.black.withValues(alpha: 0.08);
+
+    return Expanded(
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          decoration: BoxDecoration(
+            color: isActive ? activeBg : inactiveBg,
+            border: Border.all(color: isActive ? Colors.teal : borderColor),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                icon,
+                size: 16,
+                color: isActive ? Colors.white : (isDark ? Colors.white70 : Colors.black54),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                label,
+                style: TextStyle(
+                  color: isActive ? Colors.white : textColor,
+                  fontSize: 13,
+                  fontWeight: isActive ? FontWeight.bold : FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildClipboardSection() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? Colors.white : Colors.black87;
+    final cardBg = isDark ? Colors.white.withValues(alpha: 0.04) : Colors.black.withValues(alpha: 0.03);
+    final cardBorder = isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.05);
+    final filtered = _filteredClipboardHistory();
+
+    return Column(
+      children: [
+        Expanded(
+          child: filtered.isEmpty
+              ? Center(
+                  child: Text(
+                    _searchQuery.isEmpty ? 'Clipboard history is empty' : 'No matching items found',
+                    style: TextStyle(color: textColor.withValues(alpha: 0.5), fontSize: 13),
+                  ),
+                )
+              : ListView.builder(
+                  padding: EdgeInsets.zero,
+                  itemCount: filtered.length,
+                  itemBuilder: (context, index) {
+                    final item = filtered[index];
+                    final isEditing = _editingIndex == index;
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      decoration: BoxDecoration(
+                        color: cardBg,
+                        border: Border.all(color: cardBorder),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        child: Row(
+                          children: [
+                            Icon(
+                              item.isPinned ? Icons.push_pin : Icons.circle,
+                              size: item.isPinned ? 12 : 8,
+                              color: item.isPinned ? Colors.teal : textColor.withValues(alpha: 0.3),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: isEditing
+                                  ? TextField(
+                                      controller: _editController,
+                                      autofocus: true,
+                                      style: TextStyle(color: textColor, fontSize: 13),
+                                      decoration: const InputDecoration(
+                                        border: InputBorder.none,
+                                        isDense: true,
+                                        contentPadding: EdgeInsets.zero,
+                                      ),
+                                      onSubmitted: (val) => _saveEdit(index, val),
+                                    )
+                                  : InkWell(
+                                      onTap: () => _handleClipboardSelection(item.text),
+                                      child: Text(
+                                        item.text.replaceAll('\n', ' '),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(color: textColor, fontSize: 13),
+                                      ),
+                                    ),
+                            ),
+                            const SizedBox(width: 8),
+                            if (isEditing)
+                              IconButton(
+                                icon: const Icon(Icons.check_rounded, size: 16),
+                                color: Colors.teal,
+                                constraints: const BoxConstraints(),
+                                padding: const EdgeInsets.all(4),
+                                onPressed: () => _saveEdit(index, _editController.text),
+                              )
+                            else ...[
+                              IconButton(
+                                icon: const Icon(Icons.edit_outlined, size: 16),
+                                color: textColor.withValues(alpha: 0.6),
+                                constraints: const BoxConstraints(),
+                                padding: const EdgeInsets.all(4),
+                                onPressed: () {
+                                  setState(() {
+                                    _editingIndex = index;
+                                    _editController.text = item.text;
+                                  });
+                                },
+                              ),
+                              const SizedBox(width: 4),
+                              IconButton(
+                                icon: Icon(
+                                  item.isPinned ? Icons.push_pin : Icons.push_pin_outlined,
+                                  size: 16,
+                                ),
+                                color: item.isPinned ? Colors.teal : textColor.withValues(alpha: 0.6),
+                                constraints: const BoxConstraints(),
+                                padding: const EdgeInsets.all(4),
+                                onPressed: () => _togglePin(item),
+                              ),
+                              const SizedBox(width: 4),
+                              IconButton(
+                                icon: const Icon(Icons.copy_rounded, size: 16),
+                                color: textColor.withValues(alpha: 0.6),
+                                constraints: const BoxConstraints(),
+                                padding: const EdgeInsets.all(4),
+                                onPressed: () => _handleClipboardSelection(item.text),
+                              ),
+                              const SizedBox(width: 4),
+                              IconButton(
+                                icon: const Icon(Icons.delete_outline_rounded, size: 16),
+                                color: Colors.redAccent.withValues(alpha: 0.7),
+                                constraints: const BoxConstraints(),
+                                padding: const EdgeInsets.all(4),
+                                onPressed: () => _deleteItem(item),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+        ),
+        const SizedBox(height: 12),
+        Divider(color: isDark ? Colors.white10 : Colors.black12),
+        ListTile(
+          contentPadding: EdgeInsets.zero,
+          leading: Icon(
+            _privateMode ? Icons.security : Icons.security_outlined,
+            color: _privateMode ? Colors.teal : textColor.withValues(alpha: 0.7),
+            size: 20,
+          ),
+          title: Text(
+            'Private mode',
+            style: TextStyle(color: textColor, fontSize: 13, fontWeight: FontWeight.w500),
+          ),
+          trailing: Switch(
+            value: _privateMode,
+            activeTrackColor: Colors.teal.withValues(alpha: 0.5),
+            activeThumbColor: Colors.teal,
+            onChanged: (val) {
+              setState(() {
+                _privateMode = val;
+              });
+              AppSettings.saveSettings(privateMode: val);
+            },
+          ),
+        ),
+        ListTile(
+          contentPadding: EdgeInsets.zero,
+          leading: Icon(
+            Icons.delete_sweep_outlined,
+            color: Colors.redAccent.withValues(alpha: 0.8),
+            size: 20,
+          ),
+          title: Text(
+            'Clear history',
+            style: TextStyle(
+              color: Colors.redAccent.withValues(alpha: 0.8),
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          onTap: _clearHistory,
+        ),
+      ],
+    );
   }
 
   @override
@@ -293,6 +719,36 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
                   ),
                   const SizedBox(height: 12),
                   
+                  // --- Tab switcher ---
+                  Row(
+                    children: [
+                      _buildTabButton(
+                        label: 'Emojis',
+                        icon: Icons.emoji_emotions_outlined,
+                        isActive: _selectedTab == 'emojis',
+                        onTap: () {
+                          setState(() {
+                            _selectedTab = 'emojis';
+                            _editingIndex = null;
+                          });
+                        },
+                      ),
+                      const SizedBox(width: 12),
+                      _buildTabButton(
+                        label: 'Clipboard',
+                        icon: Icons.assignment_outlined,
+                        isActive: _selectedTab == 'clipboard',
+                        onTap: () {
+                          setState(() {
+                            _selectedTab = 'clipboard';
+                            _editingIndex = null;
+                          });
+                        },
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  
                   // High contrast input surface matching the acrylic paneling look
                   TextField(
                     controller: _searchController,
@@ -300,7 +756,7 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
                     autofocus: true,
                     style: TextStyle(color: textColor),
                     decoration: InputDecoration(
-                      hintText: 'Search emojis...',
+                      hintText: _selectedTab == 'emojis' ? 'Search emojis...' : 'Type here to search...',
                       hintStyle: TextStyle(color: textColor.withValues(alpha: 0.35)),
                       prefixIcon: const Icon(Icons.search, color: Colors.teal),
                       filled: true,
@@ -319,14 +775,15 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
                   const SizedBox(height: 16),
                   
                   Expanded(
-                    child: ListView(
-                      children: [
-                        // Show "Recently Used" row at the top only when search is empty and items exist
-                        if (_searchQuery.isEmpty && _recentEmojis.isNotEmpty)
-                          _buildRecentEmojisSection(),
-                        ..._buildEmojiSections(),
-                      ],
-                    ),
+                    child: _selectedTab == 'emojis'
+                        ? ListView(
+                            children: [
+                              if (_searchQuery.isEmpty && _recentEmojis.isNotEmpty)
+                                _buildRecentEmojisSection(),
+                              ..._buildEmojiSections(),
+                            ],
+                          )
+                        : _buildClipboardSection(),
                   ),
                 ],
               ),
