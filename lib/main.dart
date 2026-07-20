@@ -129,7 +129,11 @@ void main() async {
   
   await windowManager.waitUntilReadyToShow(windowOptions, () async {
     // Set the Linux window icon here
-    await windowManager.setIcon('lib/assets/imgs/app-logo.jpg');
+    try {
+      await windowManager.setIcon('lib/assets/imgs/app-logo.jpg');
+    } catch (e) {
+      debugPrint('Failed to set window icon: $e');
+    }
     
     await windowManager.setAsFrameless();
     await windowManager.show(); 
@@ -273,16 +277,20 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
   }
 
   Future<void> _loadClipboardSettings() async {
-    final settings = await AppSettings.loadSettings();
-    setState(() {
-      _privateMode = settings['privateMode'] as bool? ?? false;
-      final historyRaw = settings['clipboardHistory'] as List<dynamic>?;
-      if (historyRaw != null) {
-        _clipboardHistory = historyRaw
-            .map((item) => ClipboardItem.fromJson(item as Map<String, dynamic>))
-            .toList();
-      }
-    });
+    try {
+      final settings = await AppSettings.loadSettings();
+      setState(() {
+        _privateMode = settings['privateMode'] as bool? ?? false;
+        final historyRaw = settings['clipboardHistory'] as List<dynamic>?;
+        if (historyRaw != null) {
+          _clipboardHistory = historyRaw
+              .map((item) => ClipboardItem.fromJson(Map<String, dynamic>.from(item as Map)))
+              .toList();
+        }
+      });
+    } catch (e) {
+      debugPrint('Failed to load clipboard settings: $e');
+    }
   }
 
   void _startClipboardMonitoring() {
