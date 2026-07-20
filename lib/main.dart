@@ -237,6 +237,25 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
     });
   }
 
+  void _injectTextOrPaste(String text) async {
+    if (Platform.isLinux) {
+      try {
+        await Process.run('wtype', [text]);
+      } catch (e) {
+        debugPrint("Wayland 'wtype' text injection tool error: $e");
+      }
+    } else if (Platform.isMacOS) {
+      try {
+        await Process.run('osascript', [
+          '-e',
+          'tell application "System Events" to keystroke "v" using command down'
+        ]);
+      } catch (e) {
+        debugPrint("macOS AppleScript paste error: $e");
+      }
+    }
+  }
+
   void _handleEmojiSelection(String emoji) async {
     await Clipboard.setData(ClipboardData(text: emoji));
     _lastClipboardText = emoji; // Prevent immediately adding it to clipboard history
@@ -253,12 +272,7 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
     _searchController.clear();
 
     await Future.delayed(const Duration(milliseconds: 150));
-    
-    try {
-      await Process.run('wtype', [emoji]);
-    } catch (e) {
-      debugPrint("Wayland 'wtype' text injection tool error: $e");
-    }
+    _injectTextOrPaste(emoji);
   }
 
   Future<void> _loadClipboardSettings() async {
@@ -332,12 +346,7 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
     _searchController.clear();
 
     await Future.delayed(const Duration(milliseconds: 150));
-    
-    try {
-      await Process.run('wtype', [text]);
-    } catch (e) {
-      debugPrint("Wayland 'wtype' text injection tool error: $e");
-    }
+    _injectTextOrPaste(text);
   }
 
   List<ClipboardItem> _filteredClipboardHistory() {
