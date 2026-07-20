@@ -14,27 +14,23 @@ final ValueNotifier<ThemeMode> themeNotifier = ValueNotifier(ThemeMode.dark);
 
 class ClipboardItem {
   String text;
-  String? imagePath;
   bool isPinned;
   int timestamp;
 
   ClipboardItem({
     required this.text,
-    this.imagePath,
     this.isPinned = false,
     int? timestamp,
   }) : timestamp = timestamp ?? DateTime.now().millisecondsSinceEpoch;
 
   Map<String, dynamic> toJson() => {
     'text': text,
-    'imagePath': imagePath,
     'isPinned': isPinned,
     'timestamp': timestamp,
   };
 
   factory ClipboardItem.fromJson(Map<String, dynamic> json) => ClipboardItem(
-    text: json['text'] as String? ?? '',
-    imagePath: json['imagePath'] as String?,
+    text: json['text'] as String,
     isPinned: json['isPinned'] as bool? ?? false,
     timestamp: json['timestamp'] as int?,
   );
@@ -196,7 +192,6 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
   List<ClipboardItem> _clipboardHistory = [];
   String _selectedTab = 'clipboard'; // 'clipboard' or 'emojis'
   String? _lastClipboardText;
-  List<int>? _lastClipboardImageBytes;
   Timer? _clipboardTimer;
   int? _editingIndex;
   final TextEditingController _editController = TextEditingController();
@@ -211,7 +206,6 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
       });
     });
 
-    _initCacheDirectory();
     _loadClipboardSettings();
     _startClipboardMonitoring();
   }
@@ -246,7 +240,6 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
   void _handleEmojiSelection(String emoji) async {
     await Clipboard.setData(ClipboardData(text: emoji));
     _lastClipboardText = emoji; // Prevent immediately adding it to clipboard history
-    _lastClipboardImageBytes = null;
     
     setState(() {
       _recentEmojis.remove(emoji); 
@@ -268,52 +261,23 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
     }
   }
 
-  Future<void> _initCacheDirectory() async {
-    final home = Platform.environment['HOME'] ?? '';
-    final cacheDir = Directory('$home/.cache/omoji');
-    if (!await cacheDir.exists()) {
-      await cacheDir.create(recursive: true);
-    }
-  }
-
   Future<void> _loadClipboardSettings() async {
-    try {
-      final settings = await AppSettings.loadSettings();
-      setState(() {
-        _privateMode = settings['privateMode'] as bool? ?? false;
-        final historyRaw = settings['clipboardHistory'] as List<dynamic>?;
-        if (historyRaw != null) {
-          _clipboardHistory = historyRaw
-              .map((item) => ClipboardItem.fromJson(Map<String, dynamic>.from(item as Map)))
-              .toList();
-        }
-      });
-    } catch (e) {
-      debugPrint('Failed to load clipboard settings: $e');
-    }
+    final settings = await AppSettings.loadSettings();
+    setState(() {
+      _privateMode = settings['privateMode'] as bool? ?? false;
+      final historyRaw = settings['clipboardHistory'] as List<dynamic>?;
+      if (historyRaw != null) {
+        _clipboardHistory = historyRaw
+            .map((item) => ClipboardItem.fromJson(item as Map<String, dynamic>))
+            .toList();
+      }
+    });
   }
 
   void _startClipboardMonitoring() {
     _clipboardTimer = Timer.periodic(const Duration(seconds: 1), (timer) async {
       await _checkClipboard();
     });
-  }
-
-  bool _areBytesEqual(List<int> a, List<int> b) {
-    if (a.length != b.length) return false;
-    if (a.length < 1000) {
-      for (int i = 0; i < a.length; i++) {
-        if (a[i] != b[i]) return false;
-      }
-    } else {
-      for (int i = 0; i < 500; i++) {
-        if (a[i] != b[i]) return false;
-      }
-      for (int i = a.length - 500; i < a.length; i++) {
-        if (a[i] != b[i]) return false;
-      }
-    }
-    return true;
   }
 
   Future<void> _checkClipboard() async {
@@ -324,84 +288,32 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
         final text = data.text!;
         if (text != _lastClipboardText) {
           _lastClipboardText = text;
-          _lastClipboardImageBytes = null;
-          _addTextClipboardItem(text);
-        }
-      } else {
-        // Text is empty/null, check for Wayland image/png clipboard data
-        final imageResult = await Process.run('wl-paste', ['-t', 'image/png'], stdoutEncoding: null);
-        if (imageResult.exitCode == 0) {
-          final bytes = imageResult.stdout as List<int>;
-          if (bytes.isNotEmpty) {
-            if (_lastClipboardImageBytes == null || !_areBytesEqual(bytes, _lastClipboardImageBytes!)) {
-              _lastClipboardImageBytes = bytes;
-              _lastClipboardText = null;
-              await _addImageClipboardItem(bytes);
+          
+          final existingIndex = _clipboardHistory.indexWhere((item) => item.text == text);
+          if (existingIndex != -1) {
+            final item = _clipboardHistory.removeAt(existingIndex);
+            item.timestamp = DateTime.now().millisecondsSinceEpoch;
+            _clipboardHistory.insert(0, item);
+          } else {
+            _clipboardHistory.insert(0, ClipboardItem(text: text));
+            if (_clipboardHistory.length > 50) {
+              int lastUnpinned = _clipboardHistory.lastIndexWhere((item) => !item.isPinned);
+              if (lastUnpinned != -1) {
+                _clipboardHistory.removeAt(lastUnpinned);
+              } else {
+                _clipboardHistory.removeLast();
+              }
             }
           }
+          
+          _sortHistory();
+          AppSettings.saveSettings(clipboardHistory: _clipboardHistory);
+          if (mounted) setState(() {});
         }
       }
     } catch (e) {
       debugPrint('Error checking clipboard: $e');
     }
-  }
-
-  void _addTextClipboardItem(String text) {
-    final existingIndex = _clipboardHistory.indexWhere((item) => item.text == text && item.imagePath == null);
-    if (existingIndex != -1) {
-      final item = _clipboardHistory.removeAt(existingIndex);
-      item.timestamp = DateTime.now().millisecondsSinceEpoch;
-      _clipboardHistory.insert(0, item);
-    } else {
-      _clipboardHistory.insert(0, ClipboardItem(text: text));
-      _capHistorySize();
-    }
-    _sortHistory();
-    AppSettings.saveSettings(clipboardHistory: _clipboardHistory);
-    if (mounted) setState(() {});
-  }
-
-  Future<void> _addImageClipboardItem(List<int> bytes) async {
-    final home = Platform.environment['HOME'] ?? '';
-    final timestamp = DateTime.now().millisecondsSinceEpoch;
-    final imagePath = '$home/.cache/omoji/image_$timestamp.png';
-
-    try {
-      await File(imagePath).writeAsBytes(bytes);
-      _clipboardHistory.insert(0, ClipboardItem(text: '', imagePath: imagePath));
-      _capHistorySize();
-      _sortHistory();
-      AppSettings.saveSettings(clipboardHistory: _clipboardHistory);
-      if (mounted) setState(() {});
-    } catch (e) {
-      debugPrint('Failed to save screenshot cache: $e');
-    }
-  }
-
-  void _capHistorySize() {
-    if (_clipboardHistory.length > 50) {
-      int lastUnpinned = _clipboardHistory.lastIndexWhere((item) => !item.isPinned);
-      if (lastUnpinned != -1) {
-        final removed = _clipboardHistory.removeAt(lastUnpinned);
-        if (removed.imagePath != null) {
-          _deleteCacheFile(removed.imagePath!);
-        }
-      } else {
-        final removed = _clipboardHistory.removeLast();
-        if (removed.imagePath != null) {
-          _deleteCacheFile(removed.imagePath!);
-        }
-      }
-    }
-  }
-
-  void _deleteCacheFile(String path) {
-    try {
-      final file = File(path);
-      if (file.existsSync()) {
-        file.deleteSync();
-      }
-    } catch (_) {}
   }
 
   void _sortHistory() {
@@ -412,39 +324,19 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
     });
   }
 
-  void _handleClipboardSelection(ClipboardItem item) async {
-    if (item.imagePath != null) {
-      final file = File(item.imagePath!);
-      if (await file.exists()) {
-        await Process.run('sh', ['-c', 'wl-copy -t image/png < "${item.imagePath}"']);
-        try {
-          _lastClipboardImageBytes = await file.readAsBytes();
-          _lastClipboardText = null;
-        } catch (_) {}
-      }
-      await windowManager.hide();
-      _searchController.clear();
+  void _handleClipboardSelection(String text) async {
+    await Clipboard.setData(ClipboardData(text: text));
+    _lastClipboardText = text;
+    
+    await windowManager.hide();
+    _searchController.clear();
 
-      await Future.delayed(const Duration(milliseconds: 150));
-      try {
-        await Process.run('wtype', ['-M', 'ctrl', 'v']);
-      } catch (e) {
-        debugPrint("wtype clipboard image paste error: $e");
-      }
-    } else {
-      await Clipboard.setData(ClipboardData(text: item.text));
-      _lastClipboardText = item.text;
-      _lastClipboardImageBytes = null;
-      
-      await windowManager.hide();
-      _searchController.clear();
-
-      await Future.delayed(const Duration(milliseconds: 150));
-      try {
-        await Process.run('wtype', [item.text]);
-      } catch (e) {
-        debugPrint("Wayland 'wtype' text injection tool error: $e");
-      }
+    await Future.delayed(const Duration(milliseconds: 150));
+    
+    try {
+      await Process.run('wtype', [text]);
+    } catch (e) {
+      debugPrint("Wayland 'wtype' text injection tool error: $e");
     }
   }
 
@@ -483,9 +375,6 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
   void _deleteItem(ClipboardItem item) {
     setState(() {
       _clipboardHistory.remove(item);
-      if (item.imagePath != null) {
-        _deleteCacheFile(item.imagePath!);
-      }
     });
     AppSettings.saveSettings(clipboardHistory: _clipboardHistory);
   }
@@ -508,15 +397,9 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
               child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
             ),
             TextButton(
-            onPressed: () {
+              onPressed: () {
                 Navigator.pop(context);
                 setState(() {
-                  final removedItems = _clipboardHistory.where((item) => !item.isPinned).toList();
-                  for (final item in removedItems) {
-                    if (item.imagePath != null) {
-                      _deleteCacheFile(item.imagePath!);
-                    }
-                  }
                   _clipboardHistory.removeWhere((item) => !item.isPinned);
                 });
                 AppSettings.saveSettings(clipboardHistory: _clipboardHistory);
@@ -599,7 +482,6 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
                   itemBuilder: (context, index) {
                     final item = filtered[index];
                     final isEditing = _editingIndex == index;
-                    final isImage = item.imagePath != null;
                     return Container(
                       margin: const EdgeInsets.only(bottom: 8),
                       decoration: BoxDecoration(
@@ -618,51 +500,27 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
                             ),
                             const SizedBox(width: 10),
                             Expanded(
-                              child: isImage
-                                  ? InkWell(
-                                      onTap: () => _handleClipboardSelection(item),
-                                      child: ClipRRect(
-                                        borderRadius: BorderRadius.circular(8),
-                                        child: Image.file(
-                                          File(item.imagePath!),
-                                          height: 100,
-                                          width: double.infinity,
-                                          fit: BoxFit.cover,
-                                          errorBuilder: (context, error, stackTrace) {
-                                            return Container(
-                                              height: 100,
-                                              color: Colors.red.withValues(alpha: 0.1),
-                                              alignment: Alignment.center,
-                                              child: Text(
-                                                'Image not found',
-                                                style: TextStyle(color: textColor.withValues(alpha: 0.5), fontSize: 12),
-                                              ),
-                                            );
-                                          },
-                                        ),
+                              child: isEditing
+                                  ? TextField(
+                                      controller: _editController,
+                                      autofocus: true,
+                                      style: TextStyle(color: textColor, fontSize: 13),
+                                      decoration: const InputDecoration(
+                                        border: InputBorder.none,
+                                        isDense: true,
+                                        contentPadding: EdgeInsets.zero,
                                       ),
+                                      onSubmitted: (val) => _saveEdit(index, val),
                                     )
-                                  : (isEditing
-                                      ? TextField(
-                                          controller: _editController,
-                                          autofocus: true,
-                                          style: TextStyle(color: textColor, fontSize: 13),
-                                          decoration: const InputDecoration(
-                                            border: InputBorder.none,
-                                            isDense: true,
-                                            contentPadding: EdgeInsets.zero,
-                                          ),
-                                          onSubmitted: (val) => _saveEdit(index, val),
-                                        )
-                                      : InkWell(
-                                          onTap: () => _handleClipboardSelection(item),
-                                          child: Text(
-                                            item.text.replaceAll('\n', ' '),
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                            style: TextStyle(color: textColor, fontSize: 13),
-                                          ),
-                                        )),
+                                  : InkWell(
+                                      onTap: () => _handleClipboardSelection(item.text),
+                                      child: Text(
+                                        item.text.replaceAll('\n', ' '),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(color: textColor, fontSize: 13),
+                                      ),
+                                    ),
                             ),
                             const SizedBox(width: 8),
                             if (isEditing)
@@ -674,21 +532,19 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
                                 onPressed: () => _saveEdit(index, _editController.text),
                               )
                             else ...[
-                              if (!isImage) ...[
-                                IconButton(
-                                  icon: const Icon(Icons.edit_outlined, size: 16),
-                                  color: textColor.withValues(alpha: 0.6),
-                                  constraints: const BoxConstraints(),
-                                  padding: const EdgeInsets.all(4),
-                                  onPressed: () {
-                                    setState(() {
-                                      _editingIndex = index;
-                                      _editController.text = item.text;
-                                    });
-                                  },
-                                ),
-                                const SizedBox(width: 4),
-                              ],
+                              IconButton(
+                                icon: const Icon(Icons.edit_outlined, size: 16),
+                                color: textColor.withValues(alpha: 0.6),
+                                constraints: const BoxConstraints(),
+                                padding: const EdgeInsets.all(4),
+                                onPressed: () {
+                                  setState(() {
+                                    _editingIndex = index;
+                                    _editController.text = item.text;
+                                  });
+                                },
+                              ),
+                              const SizedBox(width: 4),
                               IconButton(
                                 icon: Icon(
                                   item.isPinned ? Icons.push_pin : Icons.push_pin_outlined,
@@ -705,7 +561,7 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
                                 color: textColor.withValues(alpha: 0.6),
                                 constraints: const BoxConstraints(),
                                 padding: const EdgeInsets.all(4),
-                                onPressed: () => _handleClipboardSelection(item),
+                                onPressed: () => _handleClipboardSelection(item.text),
                               ),
                               const SizedBox(width: 4),
                               IconButton(
