@@ -2,7 +2,7 @@
 set -e
 
 # Change directory to project root relative to script location
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/../.."
 
 echo "Building Omoji release bundle..."
 flutter build linux --release
