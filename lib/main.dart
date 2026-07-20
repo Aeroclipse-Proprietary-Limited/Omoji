@@ -200,7 +200,7 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
   // Clipboard Manager State
   bool _privateMode = false;
   List<ClipboardItem> _clipboardHistory = [];
-  String _selectedTab = 'emojis'; // 'emojis' or 'clipboard'
+  String _selectedTab = 'clipboard'; // 'clipboard' or 'emojis'
   String? _lastClipboardText;
   Timer? _clipboardTimer;
   int? _editingIndex;
@@ -723,24 +723,24 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
                   Row(
                     children: [
                       _buildTabButton(
-                        label: 'Emojis',
-                        icon: Icons.emoji_emotions_outlined,
-                        isActive: _selectedTab == 'emojis',
-                        onTap: () {
-                          setState(() {
-                            _selectedTab = 'emojis';
-                            _editingIndex = null;
-                          });
-                        },
-                      ),
-                      const SizedBox(width: 12),
-                      _buildTabButton(
                         label: 'Clipboard',
                         icon: Icons.assignment_outlined,
                         isActive: _selectedTab == 'clipboard',
                         onTap: () {
                           setState(() {
                             _selectedTab = 'clipboard';
+                            _editingIndex = null;
+                          });
+                        },
+                      ),
+                      const SizedBox(width: 12),
+                      _buildTabButton(
+                        label: 'Emojis',
+                        icon: Icons.emoji_emotions_outlined,
+                        isActive: _selectedTab == 'emojis',
+                        onTap: () {
+                          setState(() {
+                            _selectedTab = 'emojis';
                             _editingIndex = null;
                           });
                         },
