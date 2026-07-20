@@ -14,14 +14,32 @@ Omoji runs natively across Linux desktop environments (such as Ubuntu, Fedora, A
 
 ## How to Install Omoji
 
-### 1. Copy the Application Files
-Clone this repository, build your release bundle (or download the pre-compiled release files), and copy the standalone bundle folder into your user's local share directory:
+### Method A: Install the Debian Package (Recommended & Easiest)
+
+If you are running a Debian-based system (such as Ubuntu, Debian, Pop!_OS, or Linux Mint), you can install the official `.deb` package. This will automatically copy the application files, register a global command, and configure a desktop menu shortcut.
+
+1. Download the latest `.deb` package from the **[Releases](https://github.com/G-Titan/omoji/releases)** page.
+2. Open your terminal in the directory where the package is located and install it:
+   ```bash
+   sudo apt install ./omoji_1.0.0_amd64.deb
+   ```
+3. Omoji is now installed! You can search and launch it from your desktop application launcher drawer.
+
+---
+
+### Method B: Manual Installation
+
+If you prefer to install the application files manually:
+
+#### 1. Copy the Application Files
+Clone this repository, build the release bundle, and copy the standalone files into your user's local share directory:
 
 ```bash
 mkdir -p ~/.local/share/omoji
 cp -r build/linux/x64/release/bundle/* ~/.local/share/omoji/
+```
 
-2. Add Omoji to Your Applications Menu
+#### 2. Add Omoji to Your Applications Menu
 
 To make sure your operating system can index Omoji, show it in your system application drawer, and easily map it to shortcuts, you need to create a local desktop entry file.
 
