@@ -140,8 +140,6 @@ class OmojiApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const fallbackFonts = ['NotoColorEmoji'];
-
     return ValueListenableBuilder<ThemeMode>(
       valueListenable: themeNotifier,
       builder: (context, currentMode, child) {
@@ -155,12 +153,6 @@ class OmojiApp extends StatelessWidget {
               brightness: Brightness.light,
             ),
             scaffoldBackgroundColor: Colors.transparent, // Let our glass canvas handle the background color
-            textTheme: ThemeData.light().textTheme.apply(
-              fontFamilyFallback: fallbackFonts,
-            ),
-            primaryTextTheme: ThemeData.light().primaryTextTheme.apply(
-              fontFamilyFallback: fallbackFonts,
-            ),
           ),
           darkTheme: ThemeData.dark().copyWith(
             colorScheme: ColorScheme.fromSeed(
@@ -168,12 +160,6 @@ class OmojiApp extends StatelessWidget {
               brightness: Brightness.dark,
             ),
             scaffoldBackgroundColor: Colors.transparent, // Let our glass canvas handle the background color
-            textTheme: ThemeData.dark().textTheme.apply(
-              fontFamilyFallback: fallbackFonts,
-            ),
-            primaryTextTheme: ThemeData.dark().primaryTextTheme.apply(
-              fontFamilyFallback: fallbackFonts,
-            ),
           ),
           home: const OmojiHomeScreen(),
         );
@@ -837,7 +823,7 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
                   borderRadius: BorderRadius.circular(10),
                 ),
                 alignment: Alignment.center,
-                child: Text(emoji, style: const TextStyle(fontSize: 24)),
+                child: Text(emoji, style: const TextStyle(fontSize: 24, fontFamilyFallback: ['NotoColorEmoji'])),
               ),
             );
           },
@@ -897,7 +883,7 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
                     borderRadius: BorderRadius.circular(10),
                   ),
                   alignment: Alignment.center,
-                  child: Text(emoji['char']!, style: const TextStyle(fontSize: 24)),
+                  child: Text(emoji['char']!, style: const TextStyle(fontSize: 24, fontFamilyFallback: ['NotoColorEmoji'])),
                 ),
               );
             },
