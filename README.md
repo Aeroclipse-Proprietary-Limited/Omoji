@@ -1,6 +1,6 @@
 # Omoji
 
-A lightweight, glassmorphic desktop emoji picker and clipboard history manager built natively for Linux & macOS by **Aeroclipse Proprietary Limited**.
+A lightweight, glassmorphic desktop emoji picker and clipboard history manager built natively for **Linux** & **macOS** by **Aeroclipse Proprietary Limited**.
 
 Omoji is designed to pop up instantly via a keyboard shortcut (`Super + .` / `Cmd + .`), let you search and copy emojis or manage your clipboard history, and auto-inject your selection directly into your active window.
 
@@ -10,34 +10,57 @@ Omoji is designed to pop up instantly via a keyboard shortcut (`Super + .` / `Cm
 
 - **Clipboard History**: Tracks copied text snippets with inline editing, pinning, copying, and deletion.
 - **Color Emoji Picker**: Fast, categorized emoji search with automatic color fallback typography.
+- **Instant Search Focus**: Typing instantly redirects input into the search bar without requiring an initial click.
 - **Auto-Injection & Auto-Paste**: Automatically types or pastes selected emojis into your active application window (Wayland `wtype` on Linux, AppleScript `Cmd+V` on macOS).
 - **Glassmorphic UI**: Premium acrylic visual aesthetic with full Dark, Light, and System theme persistence.
 - **Privacy Mode**: Toggleable privacy mode to halt clipboard tracking whenever needed.
 
 ---
 
-## 🚀 Installation
+## 🚀 Installation & Setup
 
-### Debian / Ubuntu / Pop!_OS / Linux Mint (Recommended)
+### 🐧 Linux
 
-1. Download the latest **`omoji_1.0.0_amd64.deb`** package from **[Releases](https://github.com/Aeroclipse-Proprietary-Limited/Omoji/releases)**.
-2. Open your terminal in the download directory and install it:
+#### 1. Debian / Ubuntu / Pop!_OS / Linux Mint (`.deb`)
+
+1. Download **`omoji_1.0.0_amd64.deb`** from **[Releases](https://github.com/Aeroclipse-Proprietary-Limited/Omoji/releases)**.
+2. Open terminal in your downloads folder and install:
    ```bash
    sudo apt install ./omoji_1.0.0_amd64.deb
    ```
-3. Omoji is now installed! You can launch it from your desktop application grid or set up a hotkey below.
+
+#### 2. Fedora / Red Hat / openSUSE / RHEL (`.rpm`)
+
+1. Download **`omoji-1.0.0-1.x86_64.rpm`** from **[Releases](https://github.com/Aeroclipse-Proprietary-Limited/Omoji/releases)**.
+2. Open terminal in your downloads folder and install:
+   ```bash
+   sudo dnf install ./omoji-1.0.0-1.x86_64.rpm
+   # OR for RPM-only systems:
+   sudo rpm -i ./omoji-1.0.0-1.x86_64.rpm
+   ```
+
+#### 3. Custom Hotkey Setup (Linux)
+- Open **System Settings** -> **Keyboard** -> **Keyboard Shortcuts** -> **Custom Shortcuts**.
+- Add shortcut:
+  - **Name**: `Omoji`
+  - **Command**: `omoji` (or `/usr/bin/omoji`)
+- Set key combination (e.g., `Super + .`).
 
 ---
 
-## ⌨️ Custom Keyboard Shortcut
+### 🍏 macOS
 
-To get the seamless "pop-up" workflow:
+#### 1. Installation
+1. Download or build `omoji.app` from **[Releases](https://github.com/Aeroclipse-Proprietary-Limited/Omoji/releases)**.
+2. Move `omoji.app` into your **`/Applications`** folder.
 
-1. Open your **System Settings** -> **Keyboard** -> **Keyboard Shortcuts**.
-2. Add a new shortcut:
-   - **Name**: `Omoji`
-   - **Command**: `omoji` (or `/usr/bin/omoji`)
-3. Set your preferred key combination (e.g., `Super + .` or `Cmd + .`).
+#### 2. macOS Accessibility Permission (Required for Auto-Paste)
+To allow Omoji to auto-paste emojis directly into active apps:
+1. Open **System Settings** -> **Privacy & Security** -> **Accessibility**.
+2. Enable **Omoji** in the allowed applications list.
+
+#### 3. Custom Hotkey Setup (macOS)
+- Set up a hotkey using **System Settings** -> **Keyboard** -> **Keyboard Shortcuts**, or via tools like **Raycast** / **Alfred** / **Shortcuts.app** mapped to launch `omoji.app` with `Cmd + .`.
 
 ---
 
@@ -51,12 +74,12 @@ cd Omoji
 flutter build linux --release
 ```
 
-- **Generate `.deb` Package (Debian / Ubuntu)**:
+- **Generate `.deb` Package**:
   ```bash
   ./lib/scripts/build_deb.sh
   ```
 
-- **Generate `.rpm` Package (Fedora / Red Hat / openSUSE)**:
+- **Generate `.rpm` Package**:
   ```bash
   ./lib/scripts/build_rpm.sh
   ```
