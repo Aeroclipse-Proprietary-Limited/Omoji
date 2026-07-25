@@ -15,20 +15,23 @@ if ! command -v rpmbuild &> /dev/null; then
 fi
 
 PACKAGE_NAME="omoji"
-VERSION="1.0.0"
+VERSION="1.0.1"
 BUILD_DIR="build/rpm"
 
 rm -rf "$BUILD_DIR"
 mkdir -p "$BUILD_DIR"/{BUILD,RPMS,SOURCES,SPECS,SRPMS}
 
-# Copy release bundle into SOURCES
+# Copy release bundle and icons into SOURCES
 mkdir -p "$BUILD_DIR/SOURCES/bundle"
 cp -r build/linux/x64/release/bundle/* "$BUILD_DIR/SOURCES/bundle/"
+if [ -f "lib/assets/imgs/app-logo.png" ]; then
+    cp "lib/assets/imgs/app-logo.png" "$BUILD_DIR/SOURCES/omoji.png"
+fi
 
 # Create spec file
 cat << SPECEOF > "$BUILD_DIR/SPECS/omoji.spec"
 Name:           omoji
-Version:        1.0.0
+Version:        1.0.1
 Release:        1%{?dist}
 Summary:        A lightweight, glassmorphic desktop emoji picker & clipboard manager
 
@@ -42,8 +45,15 @@ Omoji is a standalone desktop emoji picker & clipboard history manager built nat
 mkdir -p %{buildroot}/usr/lib/omoji
 mkdir -p %{buildroot}/usr/bin
 mkdir -p %{buildroot}/usr/share/applications
+mkdir -p %{buildroot}/usr/share/pixmaps
+mkdir -p %{buildroot}/usr/share/icons/hicolor/256x256/apps
 
 cp -r %{_sourcedir}/bundle/* %{buildroot}/usr/lib/omoji/
+
+if [ -f "%{_sourcedir}/omoji.png" ]; then
+    cp "%{_sourcedir}/omoji.png" %{buildroot}/usr/share/pixmaps/omoji.png
+    cp "%{_sourcedir}/omoji.png" %{buildroot}/usr/share/icons/hicolor/256x256/apps/omoji.png
+fi
 
 cat << 'INNER_EOF' > %{buildroot}/usr/share/applications/omoji.desktop
 [Desktop Entry]
@@ -51,9 +61,10 @@ Type=Application
 Name=Omoji
 Comment=Flutter Desktop Emoji Picker & Clipboard Manager
 Exec=/usr/bin/omoji
-Icon=face-smile
+Icon=omoji
 Terminal=false
 Categories=Utility;
+StartupWMClass=omoji
 INNER_EOF
 
 cat << 'INNER_EOF' > %{buildroot}/usr/bin/omoji
@@ -67,10 +78,12 @@ chmod +x %{buildroot}/usr/bin/omoji
 /usr/lib/omoji
 /usr/bin/omoji
 /usr/share/applications/omoji.desktop
+/usr/share/pixmaps/omoji.png
+/usr/share/icons/hicolor/256x256/apps/omoji.png
 
 %changelog
-* Mon Jul 20 2026 Aeroclipse Proprietary Limited <support@aeroclipse.com> - 1.0.0-1
-- Initial release of Omoji RPM package
+* Sat Jul 25 2026 Aeroclipse Proprietary Limited <support@aeroclipse.com> - 1.0.1-1
+- Release 1.0.1 with updated window app icon and desktop launcher mapping
 SPECEOF
 
 echo "Building RPM package..."

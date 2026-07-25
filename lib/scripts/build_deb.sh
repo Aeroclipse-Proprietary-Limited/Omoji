@@ -9,13 +9,15 @@ flutter build linux --release
 
 # Setup directory structure
 BUILD_DIR="build/debian"
-PKG_DIR="${BUILD_DIR}/omoji_1.0.0_amd64"
+PKG_DIR="${BUILD_DIR}/omoji_1.0.1_amd64"
 rm -rf "${PKG_DIR}"
 mkdir -p "${PKG_DIR}/DEBIAN"
 mkdir -p "${PKG_DIR}/usr/bin"
 mkdir -p "${PKG_DIR}/usr/lib/omoji"
 mkdir -p "${PKG_DIR}/usr/share/applications"
 mkdir -p "${PKG_DIR}/usr/share/pixmaps"
+mkdir -p "${PKG_DIR}/usr/share/icons/hicolor/256x256/apps"
+mkdir -p "${PKG_DIR}/usr/share/icons/hicolor/scalable/apps"
 
 # Copy built bundle
 cp -r build/linux/x64/release/bundle/* "${PKG_DIR}/usr/lib/omoji/"
@@ -27,7 +29,13 @@ exec /usr/lib/omoji/omoji "$@"
 EOF
 chmod +x "${PKG_DIR}/usr/bin/omoji"
 
-# Copy icon
+# Copy icon files
+if [ -f "lib/assets/imgs/app-logo.png" ]; then
+    cp "lib/assets/imgs/app-logo.png" "${PKG_DIR}/usr/share/pixmaps/omoji.png"
+    cp "lib/assets/imgs/app-logo.png" "${PKG_DIR}/usr/share/icons/hicolor/256x256/apps/omoji.png"
+    cp "lib/assets/imgs/app-logo.png" "${PKG_DIR}/usr/share/icons/hicolor/scalable/apps/omoji.png"
+fi
+
 if [ -f "lib/assets/imgs/app-logo.jpg" ]; then
     cp "lib/assets/imgs/app-logo.jpg" "${PKG_DIR}/usr/share/pixmaps/omoji.jpg"
 fi
@@ -35,20 +43,21 @@ fi
 # Create desktop entry
 cat << 'EOF' > "${PKG_DIR}/usr/share/applications/omoji.desktop"
 [Desktop Entry]
-Version=1.0.0
+Version=1.0.1
 Name=Omoji
 Comment=Acrylic emoji search and clipboard manager
 Exec=/usr/bin/omoji
-Icon=/usr/share/pixmaps/omoji.jpg
+Icon=omoji
 Terminal=false
 Type=Application
 Categories=Utility;
+StartupWMClass=omoji
 EOF
 
 # Create Debian control file
 cat << 'EOF' > "${PKG_DIR}/DEBIAN/control"
 Package: omoji
-Version: 1.0.0
+Version: 1.0.1
 Section: utils
 Priority: optional
 Architecture: amd64
@@ -59,4 +68,4 @@ EOF
 echo "Building debian package..."
 dpkg-deb --build "${PKG_DIR}"
 
-echo "Debian package created successfully: build/debian/omoji_1.0.0_amd64.deb"
+echo "Debian package created successfully: build/debian/omoji_1.0.1_amd64.deb"

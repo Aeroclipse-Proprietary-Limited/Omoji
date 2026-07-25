@@ -29,6 +29,9 @@ void main() async {
   );
 
   windowManager.waitUntilReadyToShow(windowOptions, () async {
+    try {
+      await windowManager.setIcon('lib/assets/imgs/app-logo.png');
+    } catch (_) {}
     await windowManager.show();
     await windowManager.focus();
   });
