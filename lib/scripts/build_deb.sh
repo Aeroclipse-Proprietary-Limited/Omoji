@@ -9,7 +9,7 @@ flutter build linux --release
 
 # Setup directory structure
 BUILD_DIR="build/debian"
-PKG_DIR="${BUILD_DIR}/omoji_1.0.1_amd64"
+PKG_DIR="${BUILD_DIR}/omoji_1.0.4_amd64"
 rm -rf "${PKG_DIR}"
 mkdir -p "${PKG_DIR}/DEBIAN"
 mkdir -p "${PKG_DIR}/usr/bin"
@@ -32,7 +32,9 @@ chmod +x "${PKG_DIR}/usr/bin/omoji"
 # Copy icon files
 if [ -f "lib/assets/imgs/app-logo.png" ]; then
     cp "lib/assets/imgs/app-logo.png" "${PKG_DIR}/usr/share/pixmaps/omoji.png"
+    cp "lib/assets/imgs/app-logo.png" "${PKG_DIR}/usr/share/pixmaps/bw.eclipse.omoji.png"
     cp "lib/assets/imgs/app-logo.png" "${PKG_DIR}/usr/share/icons/hicolor/256x256/apps/omoji.png"
+    cp "lib/assets/imgs/app-logo.png" "${PKG_DIR}/usr/share/icons/hicolor/256x256/apps/bw.eclipse.omoji.png"
     cp "lib/assets/imgs/app-logo.png" "${PKG_DIR}/usr/share/icons/hicolor/scalable/apps/omoji.png"
 fi
 
@@ -43,7 +45,7 @@ fi
 # Create desktop entry
 cat << 'EOF' > "${PKG_DIR}/usr/share/applications/omoji.desktop"
 [Desktop Entry]
-Version=1.0.1
+Version=1.0.4
 Name=Omoji
 Comment=Acrylic emoji search and clipboard manager
 Exec=/usr/bin/omoji
@@ -54,10 +56,13 @@ Categories=Utility;
 StartupWMClass=omoji
 EOF
 
+# Symlink for legacy desktop class mapping
+cp "${PKG_DIR}/usr/share/applications/omoji.desktop" "${PKG_DIR}/usr/share/applications/bw.eclipse.omoji.desktop"
+
 # Create Debian control file
 cat << 'EOF' > "${PKG_DIR}/DEBIAN/control"
 Package: omoji
-Version: 1.0.1
+Version: 1.0.4
 Section: utils
 Priority: optional
 Architecture: amd64
@@ -68,4 +73,4 @@ EOF
 echo "Building debian package..."
 dpkg-deb --build "${PKG_DIR}"
 
-echo "Debian package created successfully: build/debian/omoji_1.0.1_amd64.deb"
+echo "Debian package created successfully: build/debian/omoji_1.0.4_amd64.deb"

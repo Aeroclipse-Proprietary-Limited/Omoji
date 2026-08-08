@@ -1,8 +1,9 @@
-// lib/settings.dart
-
+import 'dart:io';
 import 'dart:ui'; // Required for ImageFilter.blur
 import 'package:flutter/material.dart';
 import 'package:omoji/main.dart';
+import 'package:omoji/services/alarm_service.dart';
+import 'package:omoji/services/app_settings.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -13,6 +14,51 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   bool _showCardForm = false;
+  String? _customAlarmSoundPath;
+  bool _isPlayingTest = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCustomSound();
+  }
+
+  @override
+  void dispose() {
+    AlarmService.killAudioProcess();
+    super.dispose();
+  }
+
+  Future<void> _loadCustomSound() async {
+    final settings = await AppSettings.loadSettings();
+    setState(() {
+      _customAlarmSoundPath = settings['customAlarmSoundPath'] as String?;
+    });
+  }
+
+  Future<void> _pickCustomSound() async {
+    if (Platform.isLinux) {
+      try {
+        final result = await Process.run('zenity', [
+          '--file-selection',
+          '--title=Select Custom Alarm Sound MP3',
+          '--file-filter=Audio files (*.mp3 *.wav *.ogg) | *.mp3 *.wav *.ogg *.MP3 *.WAV *.OGG',
+        ]);
+        if (result.exitCode == 0) {
+          final path = (result.stdout as String).trim();
+          if (path.isNotEmpty) {
+            setState(() {
+              _customAlarmSoundPath = path;
+            });
+            await AppSettings.saveSettings(customAlarmSoundPath: path);
+            AlarmService.updateCustomSoundPath(path);
+          }
+        }
+      } catch (e) {
+        debugPrint('Failed to run zenity file picker: $e');
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -145,6 +191,119 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
                     const SizedBox(height: 24),
 
+                    // Section: Custom Alarm Sound
+                    Text(
+                      'Alarm Sound',
+                      style: TextStyle(
+                        color: subtitleColor,
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Container(
+                      width: double.infinity,
+                      decoration: BoxDecoration(
+                        color: cardBg,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: cardBorderColor),
+                      ),
+                      padding: const EdgeInsets.all(14),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              const Icon(Icons.music_note_rounded, color: Colors.teal, size: 20),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  _customAlarmSoundPath != null
+                                      ? _customAlarmSoundPath!.split('/').last
+                                      : 'Default System Sound',
+                                  style: TextStyle(
+                                    color: textColor,
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                          if (_customAlarmSoundPath != null) ...[
+                            const SizedBox(height: 4),
+                            Text(
+                              _customAlarmSoundPath!,
+                              style: TextStyle(
+                                color: subtitleColor,
+                                fontSize: 11,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                          const SizedBox(height: 12),
+                          Row(
+                            children: [
+                              ElevatedButton.icon(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.teal,
+                                  foregroundColor: Colors.white,
+                                  visualDensity: VisualDensity.compact,
+                                ),
+                                onPressed: _pickCustomSound,
+                                icon: const Icon(Icons.folder_open_rounded, size: 16),
+                                label: const Text('Browse MP3', style: TextStyle(fontSize: 12)),
+                              ),
+                              const SizedBox(width: 8),
+                              OutlinedButton.icon(
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: _isPlayingTest ? Colors.redAccent : Colors.teal,
+                                  side: BorderSide(
+                                    color: _isPlayingTest ? Colors.redAccent : Colors.teal,
+                                  ),
+                                  visualDensity: VisualDensity.compact,
+                                ),
+                                onPressed: () {
+                                  if (_isPlayingTest) {
+                                    AlarmService.killAudioProcess();
+                                    setState(() {
+                                      _isPlayingTest = false;
+                                    });
+                                  } else {
+                                    setState(() {
+                                      _isPlayingTest = true;
+                                    });
+                                    AlarmService.playAlertSound(customPath: _customAlarmSoundPath);
+                                  }
+                                },
+                                icon: Icon(_isPlayingTest ? Icons.stop_rounded : Icons.play_arrow_rounded, size: 16),
+                                label: Text(_isPlayingTest ? 'Stop Sound' : 'Test Sound', style: const TextStyle(fontSize: 12)),
+                              ),
+                              if (_customAlarmSoundPath != null) ...[
+                                const SizedBox(width: 8),
+                                IconButton(
+                                  icon: const Icon(Icons.restore_rounded, size: 18),
+                                  color: Colors.grey,
+                                  tooltip: 'Reset to Default',
+                                  onPressed: () async {
+                                    setState(() {
+                                      _customAlarmSoundPath = null;
+                                    });
+                                    await AppSettings.saveSettings(clearCustomAlarmSound: true);
+                                    AlarmService.updateCustomSoundPath(null);
+                                  },
+                                ),
+                              ],
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    const SizedBox(height: 24),
+
                     // Section: Developer Information
                     Text(
                       'Developer',
@@ -167,9 +326,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       child: Row(
                         children: [
                           CircleAvatar(
-                            radius: 20,
+                            radius: 22,
                             backgroundColor: Colors.teal.withValues(alpha: 0.2),
-                            child: const Icon(Icons.person_rounded, color: Colors.teal),
+                            backgroundImage: const AssetImage('lib/assets/imgs/acc pic.jpg'),
                           ),
                           const SizedBox(width: 14),
                           Column(
@@ -189,6 +348,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                 style: TextStyle(
                                   color: subtitleColor,
                                   fontSize: 12,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                'v1.0.4',
+                                style: TextStyle(
+                                  color: Colors.teal.withValues(alpha: 0.9),
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
                                 ),
                               ),
                             ],

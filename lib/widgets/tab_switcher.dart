@@ -59,12 +59,12 @@ class TabSwitcher extends StatelessWidget {
                       ? Colors.white
                       : (isDark ? Colors.white70 : Colors.black54),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 6),
                 Text(
                   label,
                   style: TextStyle(
                     color: isActive ? Colors.white : textColor,
-                    fontSize: 13,
+                    fontSize: 12,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -87,13 +87,21 @@ class TabSwitcher extends StatelessWidget {
           isActive: selectedTab == 'clipboard',
           onTap: () => onTabChanged('clipboard'),
         ),
-        const SizedBox(width: 12),
+        const SizedBox(width: 8),
         _buildTabButton(
           context: context,
           label: 'Emojis',
           icon: Icons.emoji_emotions_outlined,
           isActive: selectedTab == 'emojis',
           onTap: () => onTabChanged('emojis'),
+        ),
+        const SizedBox(width: 8),
+        _buildTabButton(
+          context: context,
+          label: 'Clock',
+          icon: Icons.access_time_rounded,
+          isActive: selectedTab == 'clock',
+          onTap: () => onTabChanged('clock'),
         ),
       ],
     );

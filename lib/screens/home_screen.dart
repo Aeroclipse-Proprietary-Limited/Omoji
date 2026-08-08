@@ -5,9 +5,12 @@ import 'dart:io';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:omoji/models/alarm_item.dart';
 import 'package:omoji/models/clipboard_item.dart';
+import 'package:omoji/services/alarm_service.dart';
 import 'package:omoji/services/app_settings.dart';
 import 'package:omoji/widgets/clipboard_view.dart';
+import 'package:omoji/widgets/clock_view.dart';
 import 'package:omoji/widgets/emoji_view.dart';
 import 'package:omoji/widgets/tab_switcher.dart';
 import 'package:omoji/widgets/top_bar.dart';
@@ -29,6 +32,7 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
   final List<String> _recentEmojis = [];
   bool _privateMode = false;
   List<ClipboardItem> _clipboardHistory = [];
+  List<AlarmItem> _alarms = [];
   String _selectedTab = 'clipboard';
   String? _lastClipboardText;
   Timer? _clipboardTimer;
@@ -63,6 +67,7 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
     _keyboardFocusNode.dispose();
     _clipboardTimer?.cancel();
     _editController.dispose();
+    AlarmService.dispose();
     super.dispose();
   }
 
@@ -78,6 +83,11 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
 
   @override
   void onWindowBlur() async {
+    // Keep Omoji open & visible as long as an alarm/timer is ringing or music is playing!
+    if (AlarmService.activeRingingAlarm.value != null ||
+        AlarmService.activeRingingTimer.value != null) {
+      return;
+    }
     await windowManager.hide();
     _searchController.clear();
     setState(() {
@@ -133,7 +143,15 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
             .map((item) => ClipboardItem.fromJson(item as Map<String, dynamic>))
             .toList();
       }
+      final alarmsRaw = settings['alarms'] as List<dynamic>?;
+      if (alarmsRaw != null) {
+        _alarms = alarmsRaw
+            .map((item) => AlarmItem.fromJson(item as Map<String, dynamic>))
+            .toList();
+      }
     });
+    final customSoundPath = settings['customAlarmSoundPath'] as String?;
+    AlarmService.init(_alarms, customSoundPath: customSoundPath);
   }
 
   void _startClipboardMonitoring() {
@@ -288,7 +306,10 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
         : Colors.black.withValues(alpha: 0.08);
 
     return Scaffold(
-      body: KeyboardListener(
+      backgroundColor: Colors.transparent,
+      body: Stack(
+        children: [
+          KeyboardListener(
         focusNode: _keyboardFocusNode,
         autofocus: true,
         onKeyEvent: (KeyEvent event) {
@@ -296,6 +317,12 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
             if (_editingIndex != null) return;
 
             if (event.logicalKey == LogicalKeyboardKey.escape) {
+              if (AlarmService.activeRingingAlarm.value != null ||
+                  AlarmService.activeRingingTimer.value != null) {
+                AlarmService.stopRinging();
+                setState(() {});
+                return;
+              }
               if (_searchController.text.isNotEmpty) {
                 _searchController.clear();
                 _focusNode.requestFocus();
@@ -372,6 +399,54 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     TopBar(searchFocusNode: _focusNode),
+                    ValueListenableBuilder<AlarmItem?>(
+                      valueListenable: AlarmService.activeRingingAlarm,
+                      builder: (context, activeAlarm, _) {
+                        if (activeAlarm == null) return const SizedBox.shrink();
+                        return Container(
+                          margin: const EdgeInsets.only(top: 8, bottom: 4),
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: Colors.redAccent.withValues(alpha: 0.2),
+                            border: Border.all(color: Colors.redAccent, width: 1.5),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.alarm_on_rounded, color: Colors.redAccent, size: 20),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  'RINGING: ${activeAlarm.time} - ${activeAlarm.label}',
+                                  style: const TextStyle(
+                                    color: Colors.redAccent,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              ElevatedButton.icon(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.redAccent,
+                                  foregroundColor: Colors.white,
+                                  visualDensity: VisualDensity.compact,
+                                ),
+                                onPressed: () {
+                                  AlarmService.stopRinging();
+                                  setState(() {});
+                                },
+                                icon: const Icon(Icons.alarm_off_rounded, size: 16),
+                                label: const Text(
+                                  'STOP ALARM',
+                                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
                     const SizedBox(height: 12),
                     TabSwitcher(
                       selectedTab: _selectedTab,
@@ -416,38 +491,47 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
                     ),
                     const SizedBox(height: 16),
                     Expanded(
-                      child: _selectedTab == 'emojis'
-                          ? EmojiView(
-                              searchQuery: _searchQuery,
-                              recentEmojis: _recentEmojis,
-                              onSelectEmoji: _handleEmojiSelection,
+                      child: _selectedTab == 'clock'
+                          ? ClockView(
+                              alarms: _alarms,
+                              onAlarmsChanged: (updated) {
+                                setState(() {
+                                  _alarms = updated;
+                                });
+                              },
                             )
-                          : ClipboardView(
-                              items: _filteredClipboardHistory(),
-                              searchQuery: _searchQuery,
-                              privateMode: _privateMode,
-                              editingIndex: _editingIndex,
-                              editController: _editController,
-                              searchFocusNode: _focusNode,
-                              onSelectText: _handleClipboardSelection,
-                              onSaveEdit: _saveEdit,
-                              onStartEdit: (idx) {
-                                setState(() {
-                                  _editingIndex = idx;
-                                  _editController.text =
-                                      _filteredClipboardHistory()[idx].text;
-                                });
-                              },
-                              onTogglePin: _togglePin,
-                              onDeleteItem: _deleteItem,
-                              onTogglePrivateMode: (val) {
-                                setState(() {
-                                  _privateMode = val;
-                                });
-                                AppSettings.saveSettings(privateMode: val);
-                              },
-                              onClearHistory: _clearHistory,
-                            ),
+                          : _selectedTab == 'emojis'
+                              ? EmojiView(
+                                  searchQuery: _searchQuery,
+                                  recentEmojis: _recentEmojis,
+                                  onSelectEmoji: _handleEmojiSelection,
+                                )
+                              : ClipboardView(
+                                  items: _filteredClipboardHistory(),
+                                  searchQuery: _searchQuery,
+                                  privateMode: _privateMode,
+                                  editingIndex: _editingIndex,
+                                  editController: _editController,
+                                  searchFocusNode: _focusNode,
+                                  onSelectText: _handleClipboardSelection,
+                                  onSaveEdit: _saveEdit,
+                                  onStartEdit: (idx) {
+                                    setState(() {
+                                      _editingIndex = idx;
+                                      _editController.text =
+                                          _filteredClipboardHistory()[idx].text;
+                                    });
+                                  },
+                                  onTogglePin: _togglePin,
+                                  onDeleteItem: _deleteItem,
+                                  onTogglePrivateMode: (val) {
+                                    setState(() {
+                                      _privateMode = val;
+                                    });
+                                    AppSettings.saveSettings(privateMode: val);
+                                  },
+                                  onClearHistory: _clearHistory,
+                                ),
                     ),
                   ],
                 ),
@@ -455,6 +539,129 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
             ),
           ),
         ),
+      ),
+      ValueListenableBuilder<AlarmItem?>(
+            valueListenable: AlarmService.activeRingingAlarm,
+            builder: (context, alarm, _) {
+              return ValueListenableBuilder<String?>(
+                valueListenable: AlarmService.activeRingingTimer,
+                builder: (context, timerLabel, _) {
+                  if (alarm == null && timerLabel == null) {
+                    return const SizedBox.shrink();
+                  }
+
+                  final isAlarm = alarm != null;
+                  final titleText = isAlarm ? alarm.time : '00:00';
+                  final labelText = isAlarm ? alarm.label : timerLabel ?? 'Timer Finished!';
+                  final subText = isAlarm
+                      ? (alarm.repeatDays.isEmpty
+                          ? 'One-time Alarm (auto-disables when stopped)'
+                          : 'Recurring Alarm (${alarm.repeatSummary}) • Stays active for next time')
+                      : 'Timer Alert';
+
+                  return Positioned.fill(
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.75),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Center(
+                        child: Container(
+                          margin: const EdgeInsets.symmetric(horizontal: 24),
+                          padding: const EdgeInsets.all(24),
+                          decoration: BoxDecoration(
+                            color: isDark ? const Color(0xFF2C2C2C) : Colors.white,
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(color: Colors.teal, width: 2),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.teal.withValues(alpha: 0.4),
+                                blurRadius: 24,
+                                spreadRadius: 4,
+                              ),
+                            ],
+                          ),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(16),
+                                decoration: BoxDecoration(
+                                  color: Colors.teal.withValues(alpha: 0.15),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(
+                                  Icons.alarm_on_rounded,
+                                  size: 44,
+                                  color: Colors.teal,
+                                ),
+                              ),
+                              const SizedBox(height: 14),
+                              Text(
+                                titleText,
+                                style: const TextStyle(
+                                  fontSize: 40,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.teal,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                labelText,
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                  color: textColor,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                subText,
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: textColor.withValues(alpha: 0.65),
+                                ),
+                              ),
+                              const SizedBox(height: 20),
+                              SizedBox(
+                                width: double.infinity,
+                                height: 46,
+                                child: ElevatedButton.icon(
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.teal,
+                                    foregroundColor: Colors.white,
+                                    elevation: 4,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                  ),
+                                  onPressed: () {
+                                    AlarmService.stopRinging();
+                                    setState(() {});
+                                  },
+                                  icon: const Icon(Icons.alarm_off_rounded, size: 22),
+                                  label: Text(
+                                    isAlarm ? 'STOP ALARM' : 'STOP TIMER',
+                                    style: const TextStyle(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.bold,
+                                      letterSpacing: 1.0,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              );
+            },
+          ),
+        ],
       ),
     );
   }

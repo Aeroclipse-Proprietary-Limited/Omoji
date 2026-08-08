@@ -3,6 +3,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:omoji/models/alarm_item.dart';
 import 'package:omoji/models/clipboard_item.dart';
 
 class AppSettings {
@@ -28,6 +29,9 @@ class AppSettings {
     ThemeMode? theme,
     List<ClipboardItem>? clipboardHistory,
     bool? privateMode,
+    List<AlarmItem>? alarms,
+    String? customAlarmSoundPath,
+    bool clearCustomAlarmSound = false,
   }) async {
     try {
       final file = _configFile;
@@ -64,6 +68,14 @@ class AppSettings {
       }
       if (privateMode != null) {
         current['privateMode'] = privateMode;
+      }
+      if (alarms != null) {
+        current['alarms'] = alarms.map((item) => item.toJson()).toList();
+      }
+      if (clearCustomAlarmSound) {
+        current.remove('customAlarmSoundPath');
+      } else if (customAlarmSoundPath != null) {
+        current['customAlarmSoundPath'] = customAlarmSoundPath;
       }
 
       await file.writeAsString(jsonEncode(current));

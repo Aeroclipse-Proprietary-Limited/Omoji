@@ -15,7 +15,7 @@ if ! command -v rpmbuild &> /dev/null; then
 fi
 
 PACKAGE_NAME="omoji"
-VERSION="1.0.1"
+VERSION="1.0.4"
 BUILD_DIR="build/rpm"
 
 rm -rf "$BUILD_DIR"
@@ -31,7 +31,7 @@ fi
 # Create spec file
 cat << SPECEOF > "$BUILD_DIR/SPECS/omoji.spec"
 Name:           omoji
-Version:        1.0.1
+Version:        1.0.4
 Release:        1%{?dist}
 Summary:        A lightweight, glassmorphic desktop emoji picker & clipboard manager
 
@@ -52,7 +52,9 @@ cp -r %{_sourcedir}/bundle/* %{buildroot}/usr/lib/omoji/
 
 if [ -f "%{_sourcedir}/omoji.png" ]; then
     cp "%{_sourcedir}/omoji.png" %{buildroot}/usr/share/pixmaps/omoji.png
+    cp "%{_sourcedir}/omoji.png" %{buildroot}/usr/share/pixmaps/bw.eclipse.omoji.png
     cp "%{_sourcedir}/omoji.png" %{buildroot}/usr/share/icons/hicolor/256x256/apps/omoji.png
+    cp "%{_sourcedir}/omoji.png" %{buildroot}/usr/share/icons/hicolor/256x256/apps/bw.eclipse.omoji.png
 fi
 
 cat << 'INNER_EOF' > %{buildroot}/usr/share/applications/omoji.desktop
@@ -67,6 +69,8 @@ Categories=Utility;
 StartupWMClass=omoji
 INNER_EOF
 
+cp %{buildroot}/usr/share/applications/omoji.desktop %{buildroot}/usr/share/applications/bw.eclipse.omoji.desktop
+
 cat << 'INNER_EOF' > %{buildroot}/usr/bin/omoji
 #!/bin/bash
 cd /usr/lib/omoji
@@ -78,12 +82,15 @@ chmod +x %{buildroot}/usr/bin/omoji
 /usr/lib/omoji
 /usr/bin/omoji
 /usr/share/applications/omoji.desktop
+/usr/share/applications/bw.eclipse.omoji.desktop
 /usr/share/pixmaps/omoji.png
+/usr/share/pixmaps/bw.eclipse.omoji.png
 /usr/share/icons/hicolor/256x256/apps/omoji.png
+/usr/share/icons/hicolor/256x256/apps/bw.eclipse.omoji.png
 
 %changelog
-* Sat Jul 25 2026 Aeroclipse Proprietary Limited <support@aeroclipse.com> - 1.0.1-1
-- Release 1.0.1 with updated window app icon and desktop launcher mapping
+* Sat Aug 08 2026 Aeroclipse Proprietary Limited <support@aeroclipse.com> - 1.0.4-1
+- Release 1.0.4 with Clock section (Alarms, Stopwatch, Timer), custom MP3 alarm sound, and missed alarm protection
 SPECEOF
 
 echo "Building RPM package..."

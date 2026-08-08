@@ -19,6 +19,49 @@ static void first_frame_cb(MyApplication* self, FlView* view) {
   gtk_widget_show(gtk_widget_get_toplevel(GTK_WIDGET(view)));
 }
 
+static void set_window_app_icon(GtkWindow* window) {
+  const char* possible_paths[] = {
+    "data/flutter_assets/lib/assets/imgs/app-logo.png",
+    "lib/assets/imgs/app-logo.png",
+    "data/flutter_assets/lib/assets/imgs/app-logo.jpg",
+    "lib/assets/imgs/app-logo.jpg",
+    "/usr/share/pixmaps/omoji.png",
+    "/usr/share/pixmaps/omoji.jpg",
+    "/usr/share/icons/hicolor/256x256/apps/omoji.png",
+    NULL
+  };
+
+  GdkPixbuf* pixbuf = NULL;
+  for (int i = 0; possible_paths[i] != NULL; i++) {
+    if (g_file_test(possible_paths[i], G_FILE_TEST_EXISTS)) {
+      pixbuf = gdk_pixbuf_new_from_file(possible_paths[i], NULL);
+      if (pixbuf) break;
+    }
+  }
+
+  if (!pixbuf) {
+    g_autofree char* user_icon = g_build_filename(g_get_user_data_dir(), "pixmaps", "omoji.png", NULL);
+    if (g_file_test(user_icon, G_FILE_TEST_EXISTS)) {
+      pixbuf = gdk_pixbuf_new_from_file(user_icon, NULL);
+    }
+  }
+
+  if (!pixbuf) {
+    g_autofree char* user_icon_jpg = g_build_filename(g_get_user_data_dir(), "pixmaps", "omoji.jpg", NULL);
+    if (g_file_test(user_icon_jpg, G_FILE_TEST_EXISTS)) {
+      pixbuf = gdk_pixbuf_new_from_file(user_icon_jpg, NULL);
+    }
+  }
+
+  if (pixbuf) {
+    gtk_window_set_icon(window, pixbuf);
+    gtk_window_set_default_icon(pixbuf);
+    g_object_unref(pixbuf);
+  } else {
+    gtk_window_set_icon_name(window, "omoji");
+  }
+}
+
 // Implements GApplication::activate.
 static void my_application_activate(GApplication* application) {
   MyApplication* self = MY_APPLICATION(application);
@@ -52,8 +95,8 @@ static void my_application_activate(GApplication* application) {
     gtk_window_set_title(window, "omoji");
   }
 
-  gtk_window_set_icon_name(window, "omoji");
-  gtk_window_set_default_size(window, 1280, 720);
+  set_window_app_icon(window);
+  gtk_window_set_default_size(window, 420, 540);
 
   g_autoptr(FlDartProject) project = fl_dart_project_new();
   fl_dart_project_set_dart_entrypoint_arguments(

@@ -2,7 +2,7 @@ name: omoji
 description: "A new Flutter project."
 publish_to: 'none'
 
-version: 1.0.1+2
+version: 1.0.4+5
 
 environment:
   sdk: ^3.12.2
@@ -26,6 +26,7 @@ flutter:
   assets:
     - lib/assets/imgs/app-logo.jpg
     - lib/assets/imgs/app-logo.png
+    - lib/assets/imgs/acc pic.jpg
 
   # Custom font configuration for Omoji color emoji rendering
   fonts:

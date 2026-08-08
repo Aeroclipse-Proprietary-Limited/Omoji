@@ -21,7 +21,7 @@ void main() async {
   themeNotifier.value = initialTheme;
 
   const windowOptions = WindowOptions(
-    size: Size(380, 520),
+    size: Size(420, 540),
     center: true,
     backgroundColor: Colors.transparent,
     skipTaskbar: false,
