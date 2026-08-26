@@ -15,7 +15,7 @@ if ! command -v rpmbuild &> /dev/null; then
 fi
 
 PACKAGE_NAME="omoji"
-VERSION="1.0.4"
+VERSION="1.0.5"
 BUILD_DIR="build/rpm"
 
 rm -rf "$BUILD_DIR"
@@ -31,7 +31,7 @@ fi
 # Create spec file
 cat << SPECEOF > "$BUILD_DIR/SPECS/omoji.spec"
 Name:           omoji
-Version:        1.0.4
+Version:        1.0.5
 Release:        1%{?dist}
 Summary:        A lightweight, glassmorphic desktop emoji picker & clipboard manager
 
@@ -89,8 +89,8 @@ chmod +x %{buildroot}/usr/bin/omoji
 /usr/share/icons/hicolor/256x256/apps/bw.eclipse.omoji.png
 
 %changelog
-* Sat Aug 08 2026 Aeroclipse Proprietary Limited <support@aeroclipse.com> - 1.0.4-1
-- Release 1.0.4 with Clock section (Alarms, Stopwatch, Timer), custom MP3 alarm sound, and missed alarm protection
+* Wed Aug 26 2026 Aeroclipse Proprietary Limited <support@aeroclipse.com> - 1.0.5-1
+- Release 1.0.5 with red flag, green flag, pirate flag & racing flag search keywords
 SPECEOF
 
 echo "Building RPM package..."

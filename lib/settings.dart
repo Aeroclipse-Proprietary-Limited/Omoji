@@ -352,7 +352,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               ),
                               const SizedBox(height: 2),
                               Text(
-                                'v1.0.4',
+                                'v1.0.5',
                                 style: TextStyle(
                                   color: Colors.teal.withValues(alpha: 0.9),
                                   fontSize: 11,

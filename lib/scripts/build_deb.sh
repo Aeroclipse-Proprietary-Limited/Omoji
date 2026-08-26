@@ -9,7 +9,7 @@ flutter build linux --release
 
 # Setup directory structure
 BUILD_DIR="build/debian"
-PKG_DIR="${BUILD_DIR}/omoji_1.0.4_amd64"
+PKG_DIR="${BUILD_DIR}/omoji_1.0.5_amd64"
 rm -rf "${PKG_DIR}"
 mkdir -p "${PKG_DIR}/DEBIAN"
 mkdir -p "${PKG_DIR}/usr/bin"
@@ -45,7 +45,7 @@ fi
 # Create desktop entry
 cat << 'EOF' > "${PKG_DIR}/usr/share/applications/omoji.desktop"
 [Desktop Entry]
-Version=1.0.4
+Version=1.0.5
 Name=Omoji
 Comment=Acrylic emoji search and clipboard manager
 Exec=/usr/bin/omoji
@@ -62,7 +62,7 @@ cp "${PKG_DIR}/usr/share/applications/omoji.desktop" "${PKG_DIR}/usr/share/appli
 # Create Debian control file
 cat << 'EOF' > "${PKG_DIR}/DEBIAN/control"
 Package: omoji
-Version: 1.0.4
+Version: 1.0.5
 Section: utils
 Priority: optional
 Architecture: amd64
@@ -73,4 +73,4 @@ EOF
 echo "Building debian package..."
 dpkg-deb --build "${PKG_DIR}"
 
-echo "Debian package created successfully: build/debian/omoji_1.0.4_amd64.deb"
+echo "Debian package created successfully: build/debian/omoji_1.0.5_amd64.deb"
