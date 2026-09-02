@@ -8,8 +8,9 @@ echo "Building Omoji release bundle..."
 flutter build linux --release
 
 # Setup directory structure
+VERSION="1.0.6"
 BUILD_DIR="build/debian"
-PKG_DIR="${BUILD_DIR}/omoji_1.0.5_amd64"
+PKG_DIR="${BUILD_DIR}/omoji_${VERSION}_amd64"
 rm -rf "${PKG_DIR}"
 mkdir -p "${PKG_DIR}/DEBIAN"
 mkdir -p "${PKG_DIR}/usr/bin"
@@ -43,9 +44,9 @@ if [ -f "lib/assets/imgs/app-logo.jpg" ]; then
 fi
 
 # Create desktop entry
-cat << 'EOF' > "${PKG_DIR}/usr/share/applications/omoji.desktop"
+cat << EOF > "${PKG_DIR}/usr/share/applications/omoji.desktop"
 [Desktop Entry]
-Version=1.0.5
+Version=${VERSION}
 Name=Omoji
 Comment=Acrylic emoji search and clipboard manager
 Exec=/usr/bin/omoji
@@ -60,9 +61,9 @@ EOF
 cp "${PKG_DIR}/usr/share/applications/omoji.desktop" "${PKG_DIR}/usr/share/applications/bw.eclipse.omoji.desktop"
 
 # Create Debian control file
-cat << 'EOF' > "${PKG_DIR}/DEBIAN/control"
+cat << EOF > "${PKG_DIR}/DEBIAN/control"
 Package: omoji
-Version: 1.0.5
+Version: ${VERSION}
 Section: utils
 Priority: optional
 Architecture: amd64
@@ -73,4 +74,4 @@ EOF
 echo "Building debian package..."
 dpkg-deb --build "${PKG_DIR}"
 
-echo "Debian package created successfully: build/debian/omoji_1.0.5_amd64.deb"
+echo "Debian package created successfully: build/debian/omoji_${VERSION}_amd64.deb"

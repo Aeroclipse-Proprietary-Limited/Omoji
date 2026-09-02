@@ -31,6 +31,18 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
 
   final List<String> _recentEmojis = [];
   bool _privateMode = false;
+  bool _autoPaste = true;
+  bool _ignoreEmojisInClipboard = true;
+
+  bool _isEmojiOnly(String text) {
+    final trimmed = text.trim();
+    if (trimmed.isEmpty) return false;
+    final emojiRegExp = RegExp(
+      r'^[\u{1F300}-\u{1F9FF}\u{1F600}-\u{1F64F}\u{1F680}-\u{1F6FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F1E6}-\u{1F1FF}\u{1F900}-\u{1F9FF}\u{1FA70}-\u{1FAFF}\u{200D}\u{FE0F}\s]+$',
+      unicode: true,
+    );
+    return emojiRegExp.hasMatch(trimmed);
+  }
   List<ClipboardItem> _clipboardHistory = [];
   List<AlarmItem> _alarms = [];
   String _selectedTab = 'clipboard';
@@ -96,11 +108,82 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
   }
 
   void _injectTextOrPaste(String text) async {
+    if (!_autoPaste) return;
+
     if (Platform.isLinux) {
+      // 1. Try kernel uinput via python3 evdev (Universal for native Wayland & X11)
       try {
-        await Process.run('wtype', [text]);
+        final res = await Process.run('python3', [
+          '-c',
+          '''import evdev, time
+from evdev import UInput, ecodes as e
+ui = UInput()
+time.sleep(0.05)
+for k in [e.KEY_LEFTMETA, e.KEY_RIGHTMETA, e.KEY_LEFTALT, e.KEY_RIGHTALT, e.KEY_LEFTSHIFT, e.KEY_RIGHTSHIFT, e.KEY_LEFTCTRL, e.KEY_RIGHTCTRL]:
+    ui.write(e.EV_KEY, k, 0)
+ui.syn()
+time.sleep(0.02)
+ui.write(e.EV_KEY, e.KEY_LEFTCTRL, 1)
+ui.write(e.EV_KEY, e.KEY_V, 1)
+ui.syn()
+time.sleep(0.03)
+ui.write(e.EV_KEY, e.KEY_V, 0)
+ui.write(e.EV_KEY, e.KEY_LEFTCTRL, 0)
+ui.syn()
+ui.close()'''
+        ]);
+        if (res.exitCode == 0) return;
       } catch (e) {
-        debugPrint("Wayland 'wtype' text injection tool error: $e");
+        debugPrint("python3 evdev paste error: $e");
+      }
+
+      // 2. Try xdotool key --clearmodifiers ctrl+v
+      try {
+        final res = await Process.run('xdotool', ['key', '--clearmodifiers', 'ctrl+v']);
+        if (res.exitCode == 0) return;
+      } catch (e) {
+        debugPrint("xdotool key paste error: $e");
+      }
+
+      // 3. Try wtype paste (Ctrl+V) or direct text injection
+      try {
+        final res = await Process.run('wtype', ['-M', 'ctrl', '-k', 'v', '-m', 'ctrl']);
+        if (res.exitCode == 0) return;
+      } catch (e) {
+        debugPrint("wtype paste error: $e");
+      }
+
+      try {
+        final res = await Process.run('wtype', ['--', text]);
+        if (res.exitCode == 0) return;
+      } catch (e) {
+        debugPrint("wtype text error: $e");
+      }
+
+      // 4. Try ydotool key 29:1 47:1 47:0 29:0 (Ctrl+V)
+      try {
+        final res = await Process.run('ydotool', ['key', '29:1', '47:1', '47:0', '29:0']);
+        if (res.exitCode == 0) return;
+      } catch (e) {
+        debugPrint("ydotool paste error: $e");
+      }
+
+      // 5. Try dotool key ctrl+v
+      try {
+        final process = await Process.start('dotool', []);
+        process.stdin.writeln('key ctrl+v');
+        await process.stdin.close();
+        final exitCode = await process.exitCode;
+        if (exitCode == 0) return;
+      } catch (e) {
+        debugPrint("dotool paste error: $e");
+      }
+
+      // 6. Fallback: xdotool type
+      try {
+        await Process.run('xdotool', ['type', '--clearmodifiers', text]);
+      } catch (e) {
+        debugPrint("xdotool type fallback error: $e");
       }
     } else if (Platform.isMacOS) {
       try {
@@ -110,6 +193,15 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
         ]);
       } catch (e) {
         debugPrint("macOS AppleScript paste error: $e");
+      }
+    } else if (Platform.isWindows) {
+      try {
+        await Process.run('powershell', [
+          '-c',
+          "Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('^v')"
+        ]);
+      } catch (e) {
+        debugPrint("Windows PowerShell paste error: $e");
       }
     }
   }
@@ -129,7 +221,7 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
     await windowManager.hide();
     _searchController.clear();
 
-    await Future.delayed(const Duration(milliseconds: 150));
+    await Future.delayed(const Duration(milliseconds: 220));
     _injectTextOrPaste(emoji);
   }
 
@@ -137,6 +229,8 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
     final settings = await AppSettings.loadSettings();
     setState(() {
       _privateMode = settings['privateMode'] as bool? ?? false;
+      _autoPaste = settings['autoPaste'] as bool? ?? true;
+      _ignoreEmojisInClipboard = settings['ignoreEmojisInClipboard'] as bool? ?? true;
       final historyRaw = settings['clipboardHistory'] as List<dynamic>?;
       if (historyRaw != null) {
         _clipboardHistory = historyRaw
@@ -168,6 +262,10 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
         final text = data.text!;
         if (text != _lastClipboardText) {
           _lastClipboardText = text;
+
+          if (_ignoreEmojisInClipboard && _isEmojiOnly(text)) {
+            return;
+          }
 
           final existingIndex =
               _clipboardHistory.indexWhere((item) => item.text == text);
@@ -213,7 +311,7 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
     await windowManager.hide();
     _searchController.clear();
 
-    await Future.delayed(const Duration(milliseconds: 150));
+    await Future.delayed(const Duration(milliseconds: 220));
     _injectTextOrPaste(text);
   }
 

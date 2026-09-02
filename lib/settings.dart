@@ -16,11 +16,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _showCardForm = false;
   String? _customAlarmSoundPath;
   bool _isPlayingTest = false;
+  bool _autoPaste = true;
+  bool _ignoreEmojisInClipboard = true;
 
   @override
   void initState() {
     super.initState();
-    _loadCustomSound();
+    _loadSettings();
   }
 
   @override
@@ -29,10 +31,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
     super.dispose();
   }
 
-  Future<void> _loadCustomSound() async {
+  Future<void> _loadSettings() async {
     final settings = await AppSettings.loadSettings();
     setState(() {
       _customAlarmSoundPath = settings['customAlarmSoundPath'] as String?;
+      _autoPaste = settings['autoPaste'] as bool? ?? true;
+      _ignoreEmojisInClipboard = settings['ignoreEmojisInClipboard'] as bool? ?? true;
     });
   }
 
@@ -187,6 +191,111 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           ),
                         );
                       },
+                    ),
+
+                    const SizedBox(height: 24),
+
+                    // Section: Auto-Paste
+                    Text(
+                      'Pasting & Clipboard Behavior',
+                      style: TextStyle(
+                        color: subtitleColor,
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: cardBg,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: cardBorderColor),
+                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      child: Column(
+                        children: [
+                          Row(
+                            children: [
+                              const Icon(Icons.paste_rounded, color: Colors.teal, size: 22),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Auto-Paste on Click',
+                                      style: TextStyle(
+                                        color: textColor,
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      'Automatically paste selected emoji or clipboard item into active app',
+                                      style: TextStyle(
+                                        color: subtitleColor,
+                                        fontSize: 11,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Switch(
+                                value: _autoPaste,
+                                activeThumbColor: Colors.teal,
+                                onChanged: (val) async {
+                                  setState(() {
+                                    _autoPaste = val;
+                                  });
+                                  await AppSettings.saveSettings(autoPaste: val);
+                                },
+                              ),
+                            ],
+                          ),
+                          Divider(color: cardBorderColor, height: 16),
+                          Row(
+                            children: [
+                              const Icon(Icons.do_not_disturb_on_outlined, color: Colors.teal, size: 22),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Ignore Emojis in Clipboard',
+                                      style: TextStyle(
+                                        color: textColor,
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      'Prevent single emojis from clogging up your clipboard history list',
+                                      style: TextStyle(
+                                        color: subtitleColor,
+                                        fontSize: 11,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Switch(
+                                value: _ignoreEmojisInClipboard,
+                                activeThumbColor: Colors.teal,
+                                onChanged: (val) async {
+                                  setState(() {
+                                    _ignoreEmojisInClipboard = val;
+                                  });
+                                  await AppSettings.saveSettings(ignoreEmojisInClipboard: val);
+                                },
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
                     ),
 
                     const SizedBox(height: 24),
@@ -352,7 +461,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               ),
                               const SizedBox(height: 2),
                               Text(
-                                'v1.0.5',
+                                'v1.0.6',
                                 style: TextStyle(
                                   color: Colors.teal.withValues(alpha: 0.9),
                                   fontSize: 11,

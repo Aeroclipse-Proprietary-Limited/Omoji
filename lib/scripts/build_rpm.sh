@@ -15,7 +15,7 @@ if ! command -v rpmbuild &> /dev/null; then
 fi
 
 PACKAGE_NAME="omoji"
-VERSION="1.0.5"
+VERSION="1.0.6"
 BUILD_DIR="build/rpm"
 
 rm -rf "$BUILD_DIR"
@@ -31,7 +31,7 @@ fi
 # Create spec file
 cat << SPECEOF > "$BUILD_DIR/SPECS/omoji.spec"
 Name:           omoji
-Version:        1.0.5
+Version:        ${VERSION}
 Release:        1%{?dist}
 Summary:        A lightweight, glassmorphic desktop emoji picker & clipboard manager
 

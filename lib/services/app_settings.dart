@@ -29,6 +29,8 @@ class AppSettings {
     ThemeMode? theme,
     List<ClipboardItem>? clipboardHistory,
     bool? privateMode,
+    bool? autoPaste,
+    bool? ignoreEmojisInClipboard,
     List<AlarmItem>? alarms,
     String? customAlarmSoundPath,
     bool clearCustomAlarmSound = false,
@@ -68,6 +70,12 @@ class AppSettings {
       }
       if (privateMode != null) {
         current['privateMode'] = privateMode;
+      }
+      if (autoPaste != null) {
+        current['autoPaste'] = autoPaste;
+      }
+      if (ignoreEmojisInClipboard != null) {
+        current['ignoreEmojisInClipboard'] = ignoreEmojisInClipboard;
       }
       if (alarms != null) {
         current['alarms'] = alarms.map((item) => item.toJson()).toList();
