@@ -17,6 +17,7 @@ class AlarmService {
 
   static final ValueNotifier<AlarmItem?> activeRingingAlarm = ValueNotifier(null);
   static final ValueNotifier<String?> activeRingingTimer = ValueNotifier(null);
+  static final ValueNotifier<String?> silencedAlarmNotice = ValueNotifier(null);
 
   static Future<void> init(List<AlarmItem> alarms, {String? customSoundPath}) async {
     _alarms = alarms;
@@ -69,9 +70,11 @@ class AlarmService {
   }
 
   static Future<void> triggerAlarm(AlarmItem alarm) async {
+    silencedAlarmNotice.value = null;
     activeRingingAlarm.value = alarm;
     _startAudioLoop();
-    _startTimeoutTimer();
+    final timeoutSecs = alarm.autoSilenceMinutes * 60;
+    _startTimeoutTimer(timeoutSecs, isAlarm: true, alarm: alarm);
     _sendSystemNotification(
       title: '⏰ Alarm: ${alarm.label}',
       body: 'Time: ${alarm.time} (${alarm.repeatSummary})',
@@ -80,9 +83,10 @@ class AlarmService {
   }
 
   static Future<void> triggerTimerFinished(String label) async {
+    silencedAlarmNotice.value = null;
     activeRingingTimer.value = label;
     _startAudioLoop();
-    _startTimeoutTimer();
+    _startTimeoutTimer(300, isAlarm: false, label: label);
     _sendSystemNotification(
       title: '⏳ Timer Finished!',
       body: label,
@@ -90,12 +94,37 @@ class AlarmService {
     _unminimizeWindow();
   }
 
-  static void _startTimeoutTimer() {
+  static void _startTimeoutTimer(int seconds, {required bool isAlarm, AlarmItem? alarm, String? label}) {
     _alarmRingingTimeoutTimer?.cancel();
-    // Auto-stop ringing after 60 seconds if unattended
-    _alarmRingingTimeoutTimer = Timer(const Duration(seconds: 60), () {
-      stopRinging();
+    _alarmRingingTimeoutTimer = Timer(Duration(seconds: seconds), () {
+      _autoSilenceRinging(isAlarm: isAlarm, alarm: alarm, label: label);
     });
+  }
+
+  static void _autoSilenceRinging({required bool isAlarm, AlarmItem? alarm, String? label}) {
+    _audioLoopTimer?.cancel();
+    _audioLoopTimer = null;
+    _alarmRingingTimeoutTimer = null;
+    killAudioProcess();
+
+    try {
+      windowManager.setAlwaysOnTop(false);
+    } catch (_) {}
+
+    if (isAlarm && alarm != null) {
+      if (alarm.repeatDays.isEmpty) {
+        alarm.isEnabled = false;
+        AppSettings.saveSettings(alarms: _alarms);
+      }
+      silencedAlarmNotice.value =
+          "Alarm '${alarm.label}' (${alarm.time}) was automatically silenced after ${alarm.autoSilenceMinutes} min(s).";
+    } else {
+      silencedAlarmNotice.value =
+          "Timer '${label ?? 'Finished'}' was automatically silenced after 5 min(s).";
+    }
+
+    activeRingingAlarm.value = null;
+    activeRingingTimer.value = null;
   }
 
   static void _startAudioLoop() {

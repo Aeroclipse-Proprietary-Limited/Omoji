@@ -185,7 +185,7 @@ class ClipboardView extends StatelessWidget {
           leading: Icon(
             privateMode ? Icons.security : Icons.security_outlined,
             color: privateMode
-                ? Colors.teal
+                ? Theme.of(context).colorScheme.primary
                 : textColor.withValues(alpha: 0.7),
             size: 20,
           ),
@@ -199,8 +199,8 @@ class ClipboardView extends StatelessWidget {
           ),
           trailing: Switch(
             value: privateMode,
-            activeTrackColor: Colors.teal.withValues(alpha: 0.5),
-            activeThumbColor: Colors.teal,
+            activeTrackColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.5),
+            activeThumbColor: Theme.of(context).colorScheme.primary,
             onChanged: onTogglePrivateMode,
           ),
         ),

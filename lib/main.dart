@@ -1,17 +1,47 @@
 // lib/main.dart
 
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:omoji/screens/home_screen.dart';
 import 'package:omoji/services/app_settings.dart';
+import 'package:omoji/services/timer_service.dart';
 import 'package:window_manager/window_manager.dart';
 
 final ValueNotifier<ThemeMode> themeNotifier = ValueNotifier(ThemeMode.dark);
+final ValueNotifier<Color> accentColorNotifier = ValueNotifier(const Color(0xFF009688));
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Single Instance Guard: ensure only 1 window of Omoji runs
+  try {
+    final server = await ServerSocket.bind(InternetAddress.loopbackIPv4, 49876);
+    server.listen((Socket client) {
+      client.listen((data) async {
+        final message = String.fromCharCodes(data).trim();
+        if (message == 'SHOW_WINDOW') {
+          if (await windowManager.isMinimized()) {
+            await windowManager.restore();
+          }
+          await windowManager.show();
+          await windowManager.focus();
+        }
+      });
+    });
+  } catch (_) {
+    try {
+      final client = await Socket.connect(InternetAddress.loopbackIPv4, 49876);
+      client.write('SHOW_WINDOW');
+      await client.flush();
+      client.destroy();
+    } catch (_) {}
+    exit(0);
+  }
+
   await windowManager.ensureInitialized();
 
   final settings = await AppSettings.loadSettings();
+  await TimerService.init();
 
   ThemeMode initialTheme = ThemeMode.dark;
   final themeName = settings['theme'] as String?;
@@ -19,6 +49,11 @@ void main() async {
   if (themeName == 'system') initialTheme = ThemeMode.system;
 
   themeNotifier.value = initialTheme;
+
+  final accentVal = settings['accentColor'] as int?;
+  if (accentVal != null) {
+    accentColorNotifier.value = Color(accentVal);
+  }
 
   const windowOptions = WindowOptions(
     size: Size(420, 540),
@@ -47,25 +82,30 @@ class OmojiApp extends StatelessWidget {
     return ValueListenableBuilder<ThemeMode>(
       valueListenable: themeNotifier,
       builder: (context, currentTheme, child) {
-        return MaterialApp(
-          title: 'Omoji',
-          debugShowCheckedModeBanner: false,
-          themeMode: currentTheme,
-          theme: ThemeData.light().copyWith(
-            colorScheme: ColorScheme.fromSeed(
-              seedColor: Colors.teal,
-              brightness: Brightness.light,
-            ),
-            scaffoldBackgroundColor: Colors.transparent,
-          ),
-          darkTheme: ThemeData.dark().copyWith(
-            colorScheme: ColorScheme.fromSeed(
-              seedColor: Colors.teal,
-              brightness: Brightness.dark,
-            ),
-            scaffoldBackgroundColor: Colors.transparent,
-          ),
-          home: const OmojiHomeScreen(),
+        return ValueListenableBuilder<Color>(
+          valueListenable: accentColorNotifier,
+          builder: (context, accentColor, child) {
+            return MaterialApp(
+              title: 'Omoji',
+              debugShowCheckedModeBanner: false,
+              themeMode: currentTheme,
+              theme: ThemeData.light().copyWith(
+                colorScheme: ColorScheme.fromSeed(
+                  seedColor: accentColor,
+                  brightness: Brightness.light,
+                ),
+                scaffoldBackgroundColor: Colors.transparent,
+              ),
+              darkTheme: ThemeData.dark().copyWith(
+                colorScheme: ColorScheme.fromSeed(
+                  seedColor: accentColor,
+                  brightness: Brightness.dark,
+                ),
+                scaffoldBackgroundColor: Colors.transparent,
+              ),
+              home: const OmojiHomeScreen(),
+            );
+          },
         );
       },
     );

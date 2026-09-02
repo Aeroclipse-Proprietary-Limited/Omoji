@@ -94,6 +94,17 @@ flutter build macos --release
 
 ---
 
+## 🏛️ System Architecture & Ownership
+
+Omoji is engineered under a **3-Tier Distribution System Model**:
+
+$$\text{Supplier (System Architect)} \longrightarrow \text{Dealer (Distributor / Reseller)} \longrightarrow \text{End User}$$
+
+- **Supplier of Systems**: Developed, engineered, and maintained by **Aeroclipse Proprietary Limited**.
+- **Distribution Scope**: Designed as an enterprise and individual desktop utility platform across Linux & macOS.
+
+---
+
 ## 📄 License & Credits
 
-Developed and maintained by **Aeroclipse Proprietary Limited**. Licensed under the [GPL-3.0 License](license.md).
+Developed and maintained by **Aeroclipse Proprietary Limited** (Supplier of Systems). Licensed under the [GPL-3.0 License](license.md).

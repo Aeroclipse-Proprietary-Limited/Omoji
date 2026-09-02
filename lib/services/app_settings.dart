@@ -34,6 +34,12 @@ class AppSettings {
     List<AlarmItem>? alarms,
     String? customAlarmSoundPath,
     bool clearCustomAlarmSound = false,
+    int? timerDurationSeconds,
+    int? timerTargetTimestampMs,
+    bool? timerIsRunning,
+    bool? timerIsPaused,
+    int? timerRemainingSeconds,
+    int? accentColorValue,
   }) async {
     try {
       final file = _configFile;
@@ -84,6 +90,26 @@ class AppSettings {
         current.remove('customAlarmSoundPath');
       } else if (customAlarmSoundPath != null) {
         current['customAlarmSoundPath'] = customAlarmSoundPath;
+      }
+      if (timerDurationSeconds != null) {
+        current['timerDurationSeconds'] = timerDurationSeconds;
+      }
+      if (timerTargetTimestampMs != null) {
+        current['timerTargetTimestampMs'] = timerTargetTimestampMs;
+      } else if (timerIsRunning == false) {
+        current.remove('timerTargetTimestampMs');
+      }
+      if (timerIsRunning != null) {
+        current['timerIsRunning'] = timerIsRunning;
+      }
+      if (timerIsPaused != null) {
+        current['timerIsPaused'] = timerIsPaused;
+      }
+      if (timerRemainingSeconds != null) {
+        current['timerRemainingSeconds'] = timerRemainingSeconds;
+      }
+      if (accentColorValue != null) {
+        current['accentColor'] = accentColorValue;
       }
 
       await file.writeAsString(jsonEncode(current));

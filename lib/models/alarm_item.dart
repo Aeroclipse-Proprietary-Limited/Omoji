@@ -7,6 +7,7 @@ class AlarmItem {
   bool isEnabled;
   List<int> repeatDays; // 1 = Mon, 2 = Tue, ..., 7 = Sun. Empty list = One time
   String? lastFiredDate; // YYYY-MM-DD to avoid re-triggering within the same minute
+  int autoSilenceMinutes; // Default 5 minutes
 
   AlarmItem({
     required this.id,
@@ -15,7 +16,9 @@ class AlarmItem {
     this.isEnabled = true,
     List<int>? repeatDays,
     this.lastFiredDate,
-  }) : repeatDays = repeatDays ?? [];
+    int? autoSilenceMinutes,
+  })  : repeatDays = repeatDays ?? [],
+        autoSilenceMinutes = autoSilenceMinutes ?? 5;
 
   Map<String, dynamic> toJson() => {
         'id': id,
@@ -24,6 +27,7 @@ class AlarmItem {
         'isEnabled': isEnabled,
         'repeatDays': repeatDays,
         'lastFiredDate': lastFiredDate,
+        'autoSilenceMinutes': autoSilenceMinutes,
       };
 
   factory AlarmItem.fromJson(Map<String, dynamic> json) {
@@ -34,6 +38,7 @@ class AlarmItem {
       isEnabled: (json['isEnabled'] as bool?) ?? true,
       repeatDays: (json['repeatDays'] as List<dynamic>?)?.map((e) => e as int).toList() ?? [],
       lastFiredDate: json['lastFiredDate'] as String?,
+      autoSilenceMinutes: (json['autoSilenceMinutes'] as int?) ?? 5,
     );
   }
 

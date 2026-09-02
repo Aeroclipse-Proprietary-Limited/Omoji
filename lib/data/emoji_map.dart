@@ -97,10 +97,7 @@ const Map<String, List<Map<String, String>>> fullEmojiData = {
     {'char': '🫥', 'name': 'dotted line face invisible hidden'},
     {'char': '🫤', 'name': 'face diagonal mouth unsure'},
     {'char': '🥸', 'name': 'disguised face glasses mustache spy'},
-    {'char': '🥱', 'name': 'yawn face sleep exhaustion morning early'},
-    {'char': '🥺', 'name': 'please begging sad target tearful look eyes'},
     {'char': '😼', 'name': 'cat smirk feline smile funny dynamic alignment'},
-    {'char': '🤠', 'name': 'cowboy country ranger western farm hat layout'},
     {'char': '🤷‍♂️', 'name': 'shrug face indifferent doubt uncertainty'},
     {'char': '😈', 'name': 'smiling face with horns devil evil mischievous purple'},
     {'char': '👿', 'name': 'angry face with horns demon devil mad purple'},
@@ -119,11 +116,18 @@ const Map<String, List<Map<String, String>>> fullEmojiData = {
     {'char': '😸', 'name': 'grinning cat face smiling eyes'},
     {'char': '😹', 'name': 'cat face with tears of joy laughing crying lol'},
     {'char': '😻', 'name': 'smiling cat face with heart-eyes love adore'},
-    {'char': '😼', 'name': 'cat face with wry smile smirk cynical'},
     {'char': '😽', 'name': 'kissing cat face love sweet'},
     {'char': '🙀', 'name': 'weary cat face shocked surprised terrified'},
     {'char': '😿', 'name': 'crying cat face sad tear'},
     {'char': '😾', 'name': 'pouting cat face angry mad grumpy'},
+
+    // Unicode 15.0–17.0 additions (deduplicated)
+    {'char': '🫨', 'name': 'shaking face earthquake shock vibration surprise'},
+    {'char': '🩵', 'name': 'light blue heart cyan teal love'},
+    {'char': '🩶', 'name': 'grey heart gray silver slate love'},
+    {'char': '🩷', 'name': 'pink heart cute love affection'},
+    {'char': '🫪', 'name': 'distorted face anxiety bloated panic shocked surprised vulnerable'},
+    {'char': '🫯', 'name': 'fight cloud argument brawl debate disagreement fight ruckus wrestle'},
   ],
   'Hand gestures' : [
     {'char': '🏃', 'name': 'person running runner run sprint fast jog athlete exercise fitness'},
@@ -172,6 +176,11 @@ const Map<String, List<Map<String, String>>> fullEmojiData = {
     {'char': '💅', 'name': 'nail polish manicure beauty cosmetic fashion'},
     {'char': '🤳', 'name': 'selfie phone camera taking picture'},
     {'char': '💪', 'name': 'flexed biceps muscle strong power fitness gym working out'},
+
+    // Unicode 15.0–17.0 additions (deduplicated)
+    {'char': '🫷', 'name': 'leftwards pushing hand push refuse stop wait high five'},
+    {'char': '🫸', 'name': 'rightwards pushing hand push refuse stop wait high five'},
+    {'char': '🧑‍🩰', 'name': 'ballet dancer ballet graceful dance perform twirl'},
   ],
   'Emotion & slang' : [
     {'char': '🧠', 'name': 'brain mind intelligence smart thinker anatomy'},
@@ -258,13 +267,24 @@ const Map<String, List<Map<String, String>>> fullEmojiData = {
     {'char': '🦈', 'name': 'shark predator ocean fish dangerous water'},
     {'char': '🕷️', 'name': 'spider insect arachnid web creepy halloween'},
     {'char': '🦂', 'name': 'scorpion insect desert venom stinger'},
-    {'char': '🌲', 'name': 'pine tree forest needle wood nature'},
-    {'char': '🌱', 'name': 'sprout herb agriculture plant farming'},
     {'char': '🌿', 'name': 'herb leaf greenery seasoning medical nature'},
     {'char': '🍄', 'name': 'mushroom fungus toadstool forest nature cooking'},
     {'char': '⭐', 'name': 'star space sky sparkling gold yellow'},
     {'char': '🔮', 'name': 'mystic fortune teller glass sphere magic'},
     {'char': '💨', 'name': 'dash wind running puff steam fast smoke'},
+
+    // Unicode 15.0–17.0 additions (deduplicated)
+    {'char': '🫎', 'name': 'moose animal antlers elk mammal'},
+    {'char': '🫏', 'name': 'donkey animal ass burro mule stubborn mammal'},
+    {'char': '🪽', 'name': 'wing angelic aviation bird flying mythology'},
+    {'char': '🐦‍⬛', 'name': 'black bird bird black crow raven rook'},
+    {'char': '🪿', 'name': 'goose bird fowl honk silly'},
+    {'char': '🪼', 'name': 'jellyfish marine invertebrate jelly stinger'},
+    {'char': '🪻', 'name': 'hyacinth flower bluebonnet lavender lupine snapdragon'},
+    {'char': '🪾', 'name': 'leafless tree bare barren dead drought branches winter wood'},
+    {'char': '🫈', 'name': 'hairy creature bigfoot cryptid forest giant hairy sasquatch yeti woodwose'},
+    {'char': '🫍', 'name': 'orca killer whale marine ocean sea animal'},
+    {'char': '🛘', 'name': 'landslide avalanche disaster earth rock slope'},
   ],
   'Food & Drink': [
     {'char': '🍎', 'name': 'red apple fruit healthy food'},
@@ -316,9 +336,13 @@ const Map<String, List<Map<String, String>>> fullEmojiData = {
     {'char': '🧁', 'name': 'cupcake bakery sweet dessert frosting muffin'},
     {'char': '🥂', 'name': 'clinking glasses champagne toast celebration anniversary party'},
     {'char': '🥃', 'name': 'tumbler glass whiskey bourbon liquor bar alcohol drink'},
+
+    // Unicode 15.0–17.0 additions (deduplicated)
+    {'char': '🫚', 'name': 'ginger root beer spice root food'},
+    {'char': '🫛', 'name': 'pea pod beans edamame legume vegetable'},
+    {'char': '🫜', 'name': 'root vegetable beet radish turnip garden salad vegetarian'},
   ],
   'Extra Symbols, Activities & Gaming': [
-    {'char': '⭐', 'name': 'star rating favorite achievement'},
     {'char': '🌙', 'name': 'moon night space sleep'},
     {'char': '⚡', 'name': 'lightning electricity energy power fast'},
     {'char': '☄️', 'name': 'comet space astronomy'},
@@ -342,8 +366,6 @@ const Map<String, List<Map<String, String>>> fullEmojiData = {
     {'char': '🏴', 'name': 'black flag symbol'},
     {'char': '🏳️', 'name': 'white flag surrender peace'},
     // Additions (No Repetitions)
-    {'char': '🧩', 'name': 'jigsaw piece connecting riddle logic game'},
-    {'char': '🔮', 'name': 'magic crystal fortune teller ball future witch'},
     {'char': '🧿', 'name': 'amulet protection eye ward charm greek'},
     {'char': '🀄', 'name': 'mahjong red dragon tile matching game asian'},
     {'char': '🎨', 'name': 'palette painting art creative painter canvas draw'},
@@ -360,6 +382,11 @@ const Map<String, List<Map<String, String>>> fullEmojiData = {
     {'char': '📱', 'name': 'mobile phone smartphone screen wireless portable device cellular'},
     {'char': '💰', 'name': 'money bag container savings riches currency dollar sack'},
     {'char': '🧲', 'name': 'magnet load pulling attractive power physical hardware north'},
+
+    // Unicode 15.0–17.0 additions (deduplicated)
+    {'char': '🛜', 'name': 'wireless wifi internet network computer signal'},
+    {'char': '🪯', 'name': 'khanda religion Sikh symbol'},
+    {'char': '🫟', 'name': 'splatter drip ink liquid mess paint spill stain'},
   ],
   'Activities, Tech & Objects': [
     {'char': '💻', 'name': 'laptop computer coder tech developer pc screen work'},
@@ -406,7 +433,6 @@ const Map<String, List<Map<String, String>>> fullEmojiData = {
     {'char': '💴', 'name': 'yen banknote cash paper currency japanese money capital international exchange'},
     {'char': '💶', 'name': 'euro banknote cash paper currency european money financial capital'},
     {'char': '💷', 'name': 'pound banknote cash paper currency british pound sterling royal money market'},
-    {'char': '💰', 'name': 'money bag cash funds rich wealth gold savings capital treasure box'},
     {'char': '💳', 'name': 'credit card debit transaction payment bank plastic money purchase processing finance'},
     {'char': '💎', 'name': 'gem stone diamond crystal jewel precious rich wealth hard structure luxury'},
     {'char': '⚖️', 'name': 'balance scale scales of justice court fair legal equilibrium weight judgment'},
@@ -420,7 +446,6 @@ const Map<String, List<Map<String, String>>> fullEmojiData = {
     {'char': '⚙️', 'name': 'gear cog machine parameters options engineering settings setup processing mechanics core'},
     {'char': '🧱', 'name': 'brick wall solid structural foundation masonry bricklaying construction barrier'},
     {'char': '⛓️', 'name': 'chains link metal constraints locked cryptography secure anchor bound processing loop'},
-    {'char': '🧲', 'name': 'magnet magnetic field pull attraction physical mechanics hardware physics link force'},
     {'char': '🔫', 'name': 'pistol handgun firearm water gun weapon shooting defense armaments trigger'},
     {'char': '💣', 'name': 'bomb explosion dangerous item explosive blast destructive countdown crash volatile'},
     {'char': '🧨', 'name': 'firecracker explosive dynamic fireworks popping spark celebration custom blast'},
@@ -433,8 +458,6 @@ const Map<String, List<Map<String, String>>> fullEmojiData = {
     {'char': '⚰️', 'name': 'coffin box burial funeral dead death cemetery spooky grave wood structural'},
     {'char': '⚱️', 'name': 'funeral urn ashes vessel mourning memorial container ceramic antique dead'},
     {'char': '🏺', 'name': 'amphora ancient vase ceramic greek pottery container storage vessel fluid liquid'},
-    {'char': '🔮', 'name': 'crystal ball prediction fortune future see mystical magic sorcery fortune-teller'},
-    {'char': '🧿', 'name': 'nazar amulet evil eye protection charm blue bead talisman mystic shielding'},
     {'char': '📿', 'name': 'prayer beads rosary ritual meditation spiritual count beads chanting mantra faith'},
     {'char': '💈', 'name': 'barber pole haircut styling vintage symbol spiral stripes processing salon hairdressing'},
     {'char': '🧪', 'name': 'test tube chemistry lab experiment scientific analysis fluids development research rx biological'},
@@ -462,19 +485,20 @@ const Map<String, List<Map<String, String>>> fullEmojiData = {
     {'char': '🚁', 'name': 'helicopter air travel chopper transport tactical aviation rotor'},
     {'char': '🛰️', 'name': 'satellite orbital tracking space hardware comms tech array instruments'},
     {'char': '🛸', 'name': 'ufo flying saucer alien mystery space extra terrestrial craft'},
+
+    // Unicode 15.0–17.0 additions (deduplicated)
+    {'char': '🪭', 'name': 'folding hand fan cooling dance flutter hot shy'},
+    {'char': '🪮', 'name': 'hair pick Afro comb hair grooming'},
+    {'char': '🪉', 'name': 'harp cupid love music orchestra instrument'},
+    {'char': '🪏', 'name': 'shovel dig garden hole plant snow spade'},
+    {'char': '🪊', 'name': 'trombone brass jazz music instrument slide'},
+    {'char': '🪎', 'name': 'treasure chest gem gold jewels loot money prize silver valuables wealth'},
   ],
   'Country Flags': [
-    {'char': '🚩', 'name': 'red flag triangular flag on post warning marker danger redflag'},
-    {'char': '⛳', 'name': 'green flag flag in hole golf course greenflag success ok'},
-    {'char': '🏁', 'name': 'chequered flag checkered racing finish flag'},
-    {'char': '🏴‍☠️', 'name': 'pirate flag skull crossbones jolly roger'},
-    {'char': '🏴', 'name': 'black flag symbol'},
-    {'char': '🏳️', 'name': 'white flag surrender peace'},
     {'char': '🏳️‍🌈', 'name': 'rainbow flag pride lgbtq colors'},
     {'char': '🏳️‍⚧️', 'name': 'transgender flag pride trans'},
     {'char': '🇧🇼', 'name': 'botswana flag national country'},
     {'char': '🇿🇼', 'name': 'zimbabwe flag national country'},
-    {'char': '🏳️‍🌈', 'name': 'rainbow flag pride lgbtq colors'},
     {'char': '🇺🇸', 'name': 'united states america flag us usa national country'},
     {'char': '🇬🇧', 'name': 'united kingdom flag uk britain national country royal union jack'},
     {'char': '🇨🇦', 'name': 'canada flag maple leaf canadian national country'},
@@ -525,5 +549,8 @@ const Map<String, List<Map<String, String>>> fullEmojiData = {
     {'char': '🇵🇰', 'name': 'pakistan flag pakistani crescent national country'},
     {'char': '🇪🇺', 'name': 'european union flag eu europe unity stars symbol international'},
     {'char': '🇺🇳', 'name': 'united nations flag un global world map diplomacy symbol'},
+
+    // Unicode 15.0–17.0 additions (deduplicated)
+    {'char': '🇨🇶', 'name': 'flag Sark country flag'},
   ]
 };

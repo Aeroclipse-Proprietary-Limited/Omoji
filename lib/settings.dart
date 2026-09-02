@@ -192,6 +192,87 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         );
                       },
                     ),
+                    const SizedBox(height: 14),
+
+                    // Section: Accent Color
+                    Text(
+                      'Accent Color',
+                      style: TextStyle(
+                        color: subtitleColor,
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    ValueListenableBuilder<Color>(
+                      valueListenable: accentColorNotifier,
+                      builder: (context, currentAccent, _) {
+                        const accentColors = [
+                          Color(0xFF009688), // Teal (Default)
+                          Color(0xFF8B5CF6), // Purple
+                          Color(0xFFF43F5E), // Rose
+                          Color(0xFFF59E0B), // Amber
+                          Color(0xFF10B981), // Emerald
+                        ];
+                        const accentLabels = [
+                          'Teal (Default)',
+                          'Purple',
+                          'Rose',
+                          'Amber',
+                          'Emerald',
+                        ];
+
+                        return Container(
+                          decoration: BoxDecoration(
+                            color: cardBg,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: cardBorderColor),
+                          ),
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceAround,
+                            children: List.generate(accentColors.length, (idx) {
+                              final color = accentColors[idx];
+                              final isSelected = currentAccent == color;
+
+                              return Tooltip(
+                                message: accentLabels[idx],
+                                child: GestureDetector(
+                                  onTap: () async {
+                                    accentColorNotifier.value = color;
+                                    await AppSettings.saveSettings(accentColorValue: color.toARGB32());
+                                  },
+                                  child: AnimatedContainer(
+                                    duration: const Duration(milliseconds: 200),
+                                    width: 34,
+                                    height: 34,
+                                    decoration: BoxDecoration(
+                                      color: color,
+                                      shape: BoxShape.circle,
+                                      border: Border.all(
+                                        color: isSelected ? Colors.white : Colors.transparent,
+                                        width: 2.5,
+                                      ),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: color.withValues(alpha: isSelected ? 0.6 : 0.25),
+                                          blurRadius: isSelected ? 10 : 4,
+                                          spreadRadius: isSelected ? 2 : 0,
+                                        ),
+                                      ],
+                                    ),
+                                    child: isSelected
+                                        ? const Icon(Icons.check, color: Colors.white, size: 18)
+                                        : null,
+                                  ),
+                                ),
+                              );
+                            }),
+                          ),
+                        );
+                      },
+                    ),
 
                     const SizedBox(height: 24),
 
@@ -217,7 +298,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         children: [
                           Row(
                             children: [
-                              const Icon(Icons.paste_rounded, color: Colors.teal, size: 22),
+                              Icon(Icons.paste_rounded, color: Theme.of(context).colorScheme.primary, size: 22),
                               const SizedBox(width: 12),
                               Expanded(
                                 child: Column(
@@ -244,7 +325,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               ),
                               Switch(
                                 value: _autoPaste,
-                                activeThumbColor: Colors.teal,
+                                activeThumbColor: Theme.of(context).colorScheme.primary,
                                 onChanged: (val) async {
                                   setState(() {
                                     _autoPaste = val;
@@ -257,7 +338,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           Divider(color: cardBorderColor, height: 16),
                           Row(
                             children: [
-                              const Icon(Icons.do_not_disturb_on_outlined, color: Colors.teal, size: 22),
+                              Icon(Icons.do_not_disturb_on_outlined, color: Theme.of(context).colorScheme.primary, size: 22),
                               const SizedBox(width: 12),
                               Expanded(
                                 child: Column(
@@ -284,7 +365,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               ),
                               Switch(
                                 value: _ignoreEmojisInClipboard,
-                                activeThumbColor: Colors.teal,
+                                activeThumbColor: Theme.of(context).colorScheme.primary,
                                 onChanged: (val) async {
                                   setState(() {
                                     _ignoreEmojisInClipboard = val;
@@ -580,7 +661,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     required VoidCallback onTap,
   }) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final activeColor = Colors.teal;
+    final activeColor = Theme.of(context).colorScheme.primary;
     final textColor = isDark ? Colors.white : Colors.black87;
 
     return GestureDetector(

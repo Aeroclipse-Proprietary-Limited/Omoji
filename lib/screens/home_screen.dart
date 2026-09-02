@@ -65,7 +65,7 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
     _startClipboardMonitoring();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
+      if (mounted && _selectedTab != 'clock') {
         _focusNode.requestFocus();
       }
     });
@@ -86,7 +86,7 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
   @override
   void onWindowFocus() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
+      if (mounted && _selectedTab != 'clock') {
         _focusNode.requestFocus();
       }
     });
@@ -423,12 +423,14 @@ ui.close()'''
               }
               if (_searchController.text.isNotEmpty) {
                 _searchController.clear();
-                _focusNode.requestFocus();
+                if (_selectedTab != 'clock') _focusNode.requestFocus();
               } else {
                 windowManager.hide();
               }
               return;
             }
+
+            if (_selectedTab == 'clock') return;
 
             if (_focusNode.hasFocus) return;
 
@@ -545,6 +547,56 @@ ui.close()'''
                         );
                       },
                     ),
+                    ValueListenableBuilder<String?>(
+                      valueListenable: AlarmService.silencedAlarmNotice,
+                      builder: (context, noticeText, _) {
+                        if (noticeText == null || noticeText.isEmpty) return const SizedBox.shrink();
+                        return Container(
+                          margin: const EdgeInsets.only(top: 8, bottom: 4),
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: Colors.amber.withValues(alpha: 0.2),
+                            border: Border.all(color: Colors.amber, width: 1.5),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.notifications_off_rounded, color: Colors.amber, size: 20),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  noticeText,
+                                  style: const TextStyle(
+                                    color: Colors.amber,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                  maxLines: 2,
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              ElevatedButton.icon(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.amber,
+                                  foregroundColor: Colors.black87,
+                                  visualDensity: VisualDensity.compact,
+                                ),
+                                onPressed: () {
+                                  AlarmService.silencedAlarmNotice.value = null;
+                                  setState(() {});
+                                },
+                                icon: const Icon(Icons.check_circle_outline_rounded, size: 15),
+                                label: const Text(
+                                  'DISMISS',
+                                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold),
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
                     const SizedBox(height: 12),
                     TabSwitcher(
                       selectedTab: _selectedTab,
@@ -552,41 +604,48 @@ ui.close()'''
                         setState(() {
                           _selectedTab = tab;
                           _editingIndex = null;
+                          if (tab == 'clock') {
+                            _searchController.clear();
+                          }
                         });
-                        WidgetsBinding.instance.addPostFrameCallback((_) {
-                          _focusNode.requestFocus();
-                        });
+                        if (tab != 'clock') {
+                          WidgetsBinding.instance.addPostFrameCallback((_) {
+                            _focusNode.requestFocus();
+                          });
+                        }
                       },
                       searchFocusNode: _focusNode,
                     ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: _searchController,
-                      focusNode: _focusNode,
-                      autofocus: true,
-                      style: TextStyle(color: textColor),
-                      decoration: InputDecoration(
-                        hintText: _selectedTab == 'emojis'
-                            ? 'Search emojis...'
-                            : 'Type here to search...',
-                        hintStyle: TextStyle(
-                            color: textColor.withValues(alpha: 0.35)),
-                        prefixIcon: const Icon(Icons.search, color: Colors.teal),
-                        filled: true,
-                        fillColor: inputBg,
-                        contentPadding: const EdgeInsets.symmetric(vertical: 14),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(color: inputBorderColor),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(
-                              color: Colors.teal.withValues(alpha: 0.6),
-                              width: 1.5),
+                    if (_selectedTab != 'clock') ...[
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: _searchController,
+                        focusNode: _focusNode,
+                        autofocus: true,
+                        style: TextStyle(color: textColor),
+                        decoration: InputDecoration(
+                          hintText: _selectedTab == 'emojis'
+                              ? 'Search emojis...'
+                              : 'Type here to search...',
+                          hintStyle: TextStyle(
+                              color: textColor.withValues(alpha: 0.35)),
+                          prefixIcon: Icon(Icons.search, color: Theme.of(context).colorScheme.primary),
+                          filled: true,
+                          fillColor: inputBg,
+                          contentPadding: const EdgeInsets.symmetric(vertical: 14),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(color: inputBorderColor),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(
+                                color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.6),
+                                width: 1.5),
+                          ),
                         ),
                       ),
-                    ),
+                    ],
                     const SizedBox(height: 16),
                     Expanded(
                       child: _selectedTab == 'clock'

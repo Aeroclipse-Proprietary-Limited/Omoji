@@ -23,7 +23,7 @@ class TabSwitcher extends StatelessWidget {
   }) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final textColor = isDark ? Colors.white : Colors.black87;
-    final activeBg = Colors.teal;
+    final activeBg = Theme.of(context).colorScheme.primary;
     final inactiveBg = isDark
         ? Colors.white.withValues(alpha: 0.04)
         : Colors.black.withValues(alpha: 0.03);
@@ -45,7 +45,10 @@ class TabSwitcher extends StatelessWidget {
           child: Container(
             decoration: BoxDecoration(
               color: isActive ? activeBg : inactiveBg,
-              border: Border.all(color: isActive ? Colors.teal : borderColor),
+              border: Border.all(
+                  color: isActive
+                      ? Theme.of(context).colorScheme.primary
+                      : borderColor),
               borderRadius: BorderRadius.circular(10),
             ),
             padding: const EdgeInsets.symmetric(vertical: 8),
