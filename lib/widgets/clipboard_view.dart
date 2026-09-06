@@ -130,14 +130,6 @@ class ClipboardView extends StatelessWidget {
                               )
                             else ...[
                               IconButton(
-                                icon: const Icon(Icons.edit_outlined, size: 16),
-                                color: textColor.withValues(alpha: 0.6),
-                                constraints: const BoxConstraints(),
-                                padding: const EdgeInsets.all(4),
-                                onPressed: () => onStartEdit(index),
-                              ),
-                              const SizedBox(width: 4),
-                              IconButton(
                                 icon: Icon(
                                   item.isPinned
                                       ? Icons.push_pin
@@ -145,21 +137,13 @@ class ClipboardView extends StatelessWidget {
                                   size: 16,
                                 ),
                                 color: item.isPinned
-                                    ? Colors.teal
+                                    ? Theme.of(context).colorScheme.primary
                                     : textColor.withValues(alpha: 0.6),
                                 constraints: const BoxConstraints(),
                                 padding: const EdgeInsets.all(4),
                                 onPressed: () => onTogglePin(item),
                               ),
-                              const SizedBox(width: 4),
-                              IconButton(
-                                icon: const Icon(Icons.copy_rounded, size: 16),
-                                color: textColor.withValues(alpha: 0.6),
-                                constraints: const BoxConstraints(),
-                                padding: const EdgeInsets.all(4),
-                                onPressed: () => onSelectText(item.text),
-                              ),
-                              const SizedBox(width: 4),
+                              const SizedBox(width: 6),
                               IconButton(
                                 icon: const Icon(
                                   Icons.delete_outline_rounded,

@@ -14,6 +14,72 @@ struct _MyApplication {
 
 G_DEFINE_TYPE(MyApplication, my_application, GTK_TYPE_APPLICATION)
 
+static gboolean window_focus_in_cb(GtkWidget* widget, GdkEventFocus* event, gpointer user_data) {
+  if (!gtk_window_get_accept_focus(GTK_WINDOW(widget))) {
+    return TRUE; // Block GTK window focus acquisition in overlay mode!
+  }
+  return FALSE;
+}
+
+static void window_control_method_call_cb(FlMethodChannel* channel,
+                                           FlMethodCall* method_call,
+                                           gpointer user_data) {
+  GtkWindow* window = GTK_WINDOW(user_data);
+  const gchar* method = fl_method_call_get_name(method_call);
+
+  if (g_strcmp0(method, "showOverlay") == 0) {
+    FlValue* args = fl_method_call_get_args(method_call);
+    double x = 100, y = 100, width = 440, height = 60;
+    if (args != nullptr && fl_value_get_type(args) == FL_VALUE_TYPE_MAP) {
+      FlValue* x_val = fl_value_lookup_string(args, "x");
+      FlValue* y_val = fl_value_lookup_string(args, "y");
+      FlValue* w_val = fl_value_lookup_string(args, "width");
+      FlValue* h_val = fl_value_lookup_string(args, "height");
+      if (x_val) x = fl_value_get_float(x_val);
+      if (y_val) y = fl_value_get_float(y_val);
+      if (w_val) width = fl_value_get_float(w_val);
+      if (h_val) height = fl_value_get_float(h_val);
+    }
+
+    gtk_window_set_accept_focus(window, FALSE);
+    gtk_window_set_focus_on_map(window, FALSE);
+    gtk_widget_set_can_focus(GTK_WIDGET(window), FALSE);
+
+    gtk_window_set_keep_above(window, TRUE);
+    gtk_window_set_skip_taskbar_hint(window, TRUE);
+    gtk_window_set_skip_pager_hint(window, TRUE);
+
+    gtk_window_move(window, (gint)x, (gint)y);
+    gtk_window_resize(window, (gint)width, (gint)height);
+    gtk_widget_set_opacity(GTK_WIDGET(window), 1.0);
+    gtk_widget_show(GTK_WIDGET(window));
+
+    g_autoptr(FlMethodResponse) response = FL_METHOD_RESPONSE(
+        fl_method_success_response_new(fl_value_new_bool(TRUE)));
+    fl_method_call_respond(method_call, response, nullptr);
+    return;
+  }
+
+  if (g_strcmp0(method, "hideOverlay") == 0) {
+    gtk_widget_set_opacity(GTK_WIDGET(window), 0.0);
+    gtk_window_move(window, -9999, -9999);
+    gtk_window_set_skip_taskbar_hint(window, FALSE);
+    gtk_window_set_keep_above(window, FALSE);
+    gtk_window_set_accept_focus(window, TRUE);
+    gtk_window_set_focus_on_map(window, TRUE);
+    gtk_widget_set_can_focus(GTK_WIDGET(window), TRUE);
+
+    g_autoptr(FlMethodResponse) response = FL_METHOD_RESPONSE(
+        fl_method_success_response_new(fl_value_new_bool(TRUE)));
+    fl_method_call_respond(method_call, response, nullptr);
+    return;
+  }
+
+  g_autoptr(FlMethodResponse) response = FL_METHOD_RESPONSE(
+      fl_method_not_implemented_response_new());
+  fl_method_call_respond(method_call, response, nullptr);
+}
+
 // Called when first Flutter frame received.
 static void first_frame_cb(MyApplication* self, FlView* view) {
   gtk_widget_show(gtk_widget_get_toplevel(GTK_WIDGET(view)));
@@ -68,6 +134,8 @@ static void my_application_activate(GApplication* application) {
   GtkWindow* window =
       GTK_WINDOW(gtk_application_window_new(GTK_APPLICATION(application)));
 
+  g_signal_connect(window, "focus-in-event", G_CALLBACK(window_focus_in_cb), NULL);
+
   // Use a header bar when running in GNOME as this is the common style used
   // by applications and is the setup most users will be using (e.g. Ubuntu
   // desktop).
@@ -76,8 +144,15 @@ static void my_application_activate(GApplication* application) {
   // If running on Wayland assume the header bar will work (may need changing
   // if future cases occur).
   gboolean use_header_bar = TRUE;
-#ifdef GDK_WINDOWING_X11
+
   GdkScreen* screen = gtk_window_get_screen(window);
+  GdkVisual* visual = gdk_screen_get_rgba_visual(screen);
+  if (visual != NULL) {
+    gtk_widget_set_visual(GTK_WIDGET(window), visual);
+  }
+  gtk_widget_set_app_paintable(GTK_WIDGET(window), TRUE);
+
+#ifdef GDK_WINDOWING_X11
   if (GDK_IS_X11_SCREEN(screen)) {
     const gchar* wm_name = gdk_x11_screen_get_window_manager_name(screen);
     if (g_strcmp0(wm_name, "GNOME Shell") != 0) {
@@ -118,6 +193,14 @@ static void my_application_activate(GApplication* application) {
   gtk_widget_realize(GTK_WIDGET(view));
 
   fl_register_plugins(FL_PLUGIN_REGISTRY(view));
+
+  g_autoptr(FlStandardMethodCodec) codec = fl_standard_method_codec_new();
+  g_autoptr(FlMethodChannel) channel = fl_method_channel_new(
+      fl_engine_get_binary_messenger(fl_view_get_engine(view)),
+      "com.aeroclipse.omoji/window",
+      FL_METHOD_CODEC(codec));
+  fl_method_channel_set_method_call_handler(
+      channel, window_control_method_call_cb, window, nullptr);
 
   gtk_widget_grab_focus(GTK_WIDGET(view));
 }
@@ -184,9 +267,9 @@ MyApplication* my_application_new() {
   // like GTK and desktop environments map this running application to its
   // corresponding .desktop file. This ensures better integration by allowing
   // the application to be recognized beyond its binary name.
-  g_set_prgname(APPLICATION_ID);
+  g_set_prgname("com.aeroclipse.omoji");
 
   return MY_APPLICATION(g_object_new(my_application_get_type(),
-                                     "application-id", APPLICATION_ID, "flags",
+                                     "application-id", "com.aeroclipse.omoji", "flags",
                                      G_APPLICATION_NON_UNIQUE, nullptr));
 }

@@ -2,7 +2,7 @@ name: omoji
 description: "A new Flutter project."
 publish_to: 'none'
 
-version: 1.0.7+8
+version: 1.0.9+10
 
 environment:
   sdk: ^3.12.2
@@ -13,6 +13,7 @@ dependencies:
 
   cupertino_icons: ^1.0.8
   window_manager: ^0.5.1
+  screen_retriever: ^0.2.1
   hotkey_manager: ^0.2.3
 
 dev_dependencies:

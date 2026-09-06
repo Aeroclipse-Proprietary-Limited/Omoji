@@ -18,6 +18,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _isPlayingTest = false;
   bool _autoPaste = true;
   bool _ignoreEmojisInClipboard = true;
+  bool _enableEmojiPredictions = true;
 
   @override
   void initState() {
@@ -37,6 +38,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _customAlarmSoundPath = settings['customAlarmSoundPath'] as String?;
       _autoPaste = settings['autoPaste'] as bool? ?? true;
       _ignoreEmojisInClipboard = settings['ignoreEmojisInClipboard'] as bool? ?? true;
+      _enableEmojiPredictions = settings['enableEmojiPredictions'] as bool? ?? true;
     });
   }
 
@@ -211,16 +213,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         const accentColors = [
                           Color(0xFF009688), // Teal (Default)
                           Color(0xFF8B5CF6), // Purple
-                          Color(0xFFF43F5E), // Rose
+                          Color(0xFF2563EB), // Sapphire
                           Color(0xFFF59E0B), // Amber
-                          Color(0xFF10B981), // Emerald
+                          Color(0xFF06B6D4), // Cyan
                         ];
                         const accentLabels = [
                           'Teal (Default)',
                           'Purple',
-                          'Rose',
+                          'Sapphire',
                           'Amber',
-                          'Emerald',
+                          'Cyan',
                         ];
 
                         return Container(
@@ -375,6 +377,46 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               ),
                             ],
                           ),
+                          Divider(color: cardBorderColor, height: 16),
+                          Row(
+                            children: [
+                              Icon(Icons.auto_awesome_rounded, color: Theme.of(context).colorScheme.primary, size: 22),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Live Emoji Predictions',
+                                      style: TextStyle(
+                                        color: textColor,
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      'Suggest matching emoji as you type (Enter to autofill, Esc to cancel)',
+                                      style: TextStyle(
+                                        color: subtitleColor,
+                                        fontSize: 11,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Switch(
+                                value: _enableEmojiPredictions,
+                                activeThumbColor: Theme.of(context).colorScheme.primary,
+                                onChanged: (val) async {
+                                  setState(() {
+                                    _enableEmojiPredictions = val;
+                                  });
+                                  await AppSettings.saveSettings(enableEmojiPredictions: val);
+                                },
+                              ),
+                            ],
+                          ),
                         ],
                       ),
                     ),
@@ -471,21 +513,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                 icon: Icon(_isPlayingTest ? Icons.stop_rounded : Icons.play_arrow_rounded, size: 16),
                                 label: Text(_isPlayingTest ? 'Stop Sound' : 'Test Sound', style: const TextStyle(fontSize: 12)),
                               ),
-                              if (_customAlarmSoundPath != null) ...[
-                                const SizedBox(width: 8),
-                                IconButton(
-                                  icon: const Icon(Icons.restore_rounded, size: 18),
-                                  color: Colors.grey,
-                                  tooltip: 'Reset to Default',
-                                  onPressed: () async {
-                                    setState(() {
-                                      _customAlarmSoundPath = null;
-                                    });
-                                    await AppSettings.saveSettings(clearCustomAlarmSound: true);
-                                    AlarmService.updateCustomSoundPath(null);
-                                  },
-                                ),
-                              ],
+                              IconButton(
+                                icon: const Icon(Icons.restart_alt_rounded, size: 20),
+                                color: _customAlarmSoundPath != null ? Colors.orangeAccent : textColor.withValues(alpha: 0.3),
+                                tooltip: 'Reset to Default System Sound',
+                                onPressed: _customAlarmSoundPath == null
+                                    ? null
+                                    : () async {
+                                        setState(() {
+                                          _customAlarmSoundPath = null;
+                                        });
+                                        await AppSettings.saveSettings(clearCustomAlarmSound: true);
+                                        AlarmService.updateCustomSoundPath(null);
+                                      },
+                              ),
                             ],
                           ),
                         ],
@@ -542,9 +583,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               ),
                               const SizedBox(height: 2),
                               Text(
-                                'v1.0.6',
+                                'v1.0.9',
                                 style: TextStyle(
-                                  color: Colors.teal.withValues(alpha: 0.9),
+                                  color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.9),
                                   fontSize: 11,
                                   fontWeight: FontWeight.bold,
                                 ),

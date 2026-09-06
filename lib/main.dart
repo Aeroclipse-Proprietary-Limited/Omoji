@@ -2,8 +2,10 @@
 
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:omoji/screens/home_screen.dart';
 import 'package:omoji/services/app_settings.dart';
+import 'package:omoji/services/stopwatch_service.dart';
 import 'package:omoji/services/timer_service.dart';
 import 'package:window_manager/window_manager.dart';
 
@@ -20,9 +22,16 @@ void main() async {
       client.listen((data) async {
         final message = String.fromCharCodes(data).trim();
         if (message == 'SHOW_WINDOW') {
+          try {
+            const MethodChannel('com.aeroclipse.omoji/window').invokeMethod('setAcceptFocus', true);
+          } catch (_) {}
           if (await windowManager.isMinimized()) {
             await windowManager.restore();
           }
+          await windowManager.setOpacity(1.0);
+          await windowManager.setSize(const Size(420, 540));
+          await windowManager.setSkipTaskbar(false);
+          await windowManager.center();
           await windowManager.show();
           await windowManager.focus();
         }
@@ -42,6 +51,7 @@ void main() async {
 
   final settings = await AppSettings.loadSettings();
   await TimerService.init();
+  await StopwatchService.init();
 
   ThemeMode initialTheme = ThemeMode.dark;
   final themeName = settings['theme'] as String?;

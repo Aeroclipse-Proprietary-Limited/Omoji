@@ -15,15 +15,19 @@ if ! command -v rpmbuild &> /dev/null; then
 fi
 
 PACKAGE_NAME="omoji"
-VERSION="1.0.7"
+VERSION="1.0.9"
 BUILD_DIR="build/rpm"
 
 rm -rf "$BUILD_DIR"
 mkdir -p "$BUILD_DIR"/{BUILD,RPMS,SOURCES,SPECS,SRPMS}
 
-# Copy release bundle and icons into SOURCES
+# Copy release bundle, scripts/data and icons into SOURCES
 mkdir -p "$BUILD_DIR/SOURCES/bundle"
 cp -r build/linux/x64/release/bundle/* "$BUILD_DIR/SOURCES/bundle/"
+mkdir -p "$BUILD_DIR/SOURCES/bundle/lib/scripts"
+mkdir -p "$BUILD_DIR/SOURCES/bundle/lib/data"
+cp -r lib/scripts/* "$BUILD_DIR/SOURCES/bundle/lib/scripts/"
+cp -r lib/data/* "$BUILD_DIR/SOURCES/bundle/lib/data/"
 if [ -f "lib/assets/imgs/app-logo.png" ]; then
     cp "lib/assets/imgs/app-logo.png" "$BUILD_DIR/SOURCES/omoji.png"
 fi
@@ -52,9 +56,7 @@ cp -r %{_sourcedir}/bundle/* %{buildroot}/usr/lib/omoji/
 
 if [ -f "%{_sourcedir}/omoji.png" ]; then
     cp "%{_sourcedir}/omoji.png" %{buildroot}/usr/share/pixmaps/omoji.png
-    cp "%{_sourcedir}/omoji.png" %{buildroot}/usr/share/pixmaps/bw.eclipse.omoji.png
     cp "%{_sourcedir}/omoji.png" %{buildroot}/usr/share/icons/hicolor/256x256/apps/omoji.png
-    cp "%{_sourcedir}/omoji.png" %{buildroot}/usr/share/icons/hicolor/256x256/apps/bw.eclipse.omoji.png
 fi
 
 cat << 'INNER_EOF' > %{buildroot}/usr/share/applications/omoji.desktop
@@ -69,8 +71,6 @@ Categories=Utility;
 StartupWMClass=omoji
 INNER_EOF
 
-cp %{buildroot}/usr/share/applications/omoji.desktop %{buildroot}/usr/share/applications/bw.eclipse.omoji.desktop
-
 cat << 'INNER_EOF' > %{buildroot}/usr/bin/omoji
 #!/bin/bash
 cd /usr/lib/omoji
@@ -82,11 +82,8 @@ chmod +x %{buildroot}/usr/bin/omoji
 /usr/lib/omoji
 /usr/bin/omoji
 /usr/share/applications/omoji.desktop
-/usr/share/applications/bw.eclipse.omoji.desktop
 /usr/share/pixmaps/omoji.png
-/usr/share/pixmaps/bw.eclipse.omoji.png
 /usr/share/icons/hicolor/256x256/apps/omoji.png
-/usr/share/icons/hicolor/256x256/apps/bw.eclipse.omoji.png
 
 %changelog
 * Wed Aug 26 2026 Aeroclipse Proprietary Limited <support@aeroclipse.com> - 1.0.5-1

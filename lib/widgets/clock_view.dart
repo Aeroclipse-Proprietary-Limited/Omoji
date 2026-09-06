@@ -1,10 +1,8 @@
-// lib/widgets/clock_view.dart
-
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:omoji/models/alarm_item.dart';
 import 'package:omoji/services/alarm_service.dart';
 import 'package:omoji/services/app_settings.dart';
+import 'package:omoji/services/stopwatch_service.dart';
 import 'package:omoji/services/timer_service.dart';
 
 class ClockView extends StatefulWidget {
@@ -23,59 +21,6 @@ class ClockView extends StatefulWidget {
 
 class _ClockViewState extends State<ClockView> {
   String _subTab = 'alarms'; // 'alarms', 'stopwatch', 'timer'
-
-  // --- Stopwatch State ---
-  final Stopwatch _stopwatch = Stopwatch();
-  Timer? _stopwatchTimer;
-  final List<String> _laps = [];
-
-  @override
-  void dispose() {
-    _stopwatchTimer?.cancel();
-    super.dispose();
-  }
-
-  // --- Stopwatch Handlers ---
-  void _toggleStopwatch() {
-    setState(() {
-      if (_stopwatch.isRunning) {
-        _stopwatch.stop();
-        _stopwatchTimer?.cancel();
-      } else {
-        _stopwatch.start();
-        _stopwatchTimer = Timer.periodic(const Duration(milliseconds: 30), (_) {
-          if (mounted) setState(() {});
-        });
-      }
-    });
-  }
-
-  void _resetStopwatch() {
-    setState(() {
-      _stopwatch.stop();
-      _stopwatch.reset();
-      _stopwatchTimer?.cancel();
-      _laps.clear();
-    });
-  }
-
-  void _recordLap() {
-    if (!_stopwatch.isRunning) return;
-    final formatted = _formatStopwatchTime(_stopwatch.elapsedMilliseconds);
-    setState(() {
-      _laps.insert(0, 'Lap ${_laps.length + 1}: $formatted');
-    });
-  }
-
-  String _formatStopwatchTime(int milliseconds) {
-    final hundredths = (milliseconds ~/ 10) % 100;
-    final seconds = (milliseconds ~/ 1000) % 60;
-    final minutes = (milliseconds ~/ (1000 * 60)) % 60;
-    final hours = (milliseconds ~/ (1000 * 60 * 60));
-
-    final hStr = hours > 0 ? '${hours.toString().padLeft(2, '0')}:' : '';
-    return '$hStr${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}.${hundredths.toString().padLeft(2, '0')}';
-  }
 
   String _formatTimerDisplay(int totalSeconds) {
     final hours = totalSeconds ~/ 3600;
@@ -450,98 +395,125 @@ class _ClockViewState extends State<ClockView> {
 
   // --- STOPWATCH VIEW ---
   Widget _buildStopwatchView(Color cardBg, Color cardBorder, Color textColor) {
-    final displayStr = _formatStopwatchTime(_stopwatch.elapsedMilliseconds);
+    return ValueListenableBuilder<bool>(
+      valueListenable: StopwatchService.runningNotifier,
+      builder: (context, isRunning, _) {
+        return ValueListenableBuilder<int>(
+          valueListenable: StopwatchService.elapsedNotifier,
+          builder: (context, elapsedMs, _) {
+            final displayStr = StopwatchService.formatStopwatchTime(elapsedMs);
 
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        const SizedBox(height: 10),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-          decoration: BoxDecoration(
-            color: cardBg,
-            border: Border.all(color: cardBorder),
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: Text(
-            displayStr,
-            style: TextStyle(
-              fontSize: 38,
-              fontWeight: FontWeight.bold,
-              fontFamily: 'monospace',
-              color: Theme.of(context).colorScheme.primary,
-            ),
-          ),
-        ),
-        const SizedBox(height: 16),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            ElevatedButton.icon(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: _stopwatch.isRunning
-                    ? Colors.orangeAccent
-                    : Theme.of(context).colorScheme.primary,
-                foregroundColor: Colors.white,
-              ),
-              onPressed: _toggleStopwatch,
-              icon: Icon(_stopwatch.isRunning ? Icons.pause : Icons.play_arrow),
-              label: Text(_stopwatch.isRunning ? 'Pause' : 'Start'),
-            ),
-            const SizedBox(width: 10),
-            ElevatedButton.icon(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.white.withValues(alpha: 0.1),
-                foregroundColor: textColor,
-              ),
-              onPressed: _recordLap,
-              icon: const Icon(Icons.flag_outlined, size: 18),
-              label: const Text('Lap'),
-            ),
-            const SizedBox(width: 10),
-            ElevatedButton.icon(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.redAccent.withValues(alpha: 0.2),
-                foregroundColor: Colors.redAccent,
-              ),
-              onPressed: _resetStopwatch,
-              icon: const Icon(Icons.refresh, size: 18),
-              label: const Text('Reset'),
-            ),
-          ],
-        ),
-        const SizedBox(height: 14),
-        Expanded(
-          child: _laps.isEmpty
-              ? Center(
-                  child: Text(
-                    'No laps recorded',
-                    style: TextStyle(color: textColor.withValues(alpha: 0.4), fontSize: 12),
-                  ),
-                )
-              : ListView.builder(
-                  itemCount: _laps.length,
-                  itemBuilder: (context, index) {
-                    return Container(
-                      margin: const EdgeInsets.only(bottom: 6),
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+            return ValueListenableBuilder<List<String>>(
+              valueListenable: StopwatchService.lapsNotifier,
+              builder: (context, lapsList, _) {
+                return Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const SizedBox(height: 10),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
                       decoration: BoxDecoration(
                         color: cardBg,
-                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: cardBorder),
+                        borderRadius: BorderRadius.circular(16),
                       ),
                       child: Text(
-                        _laps[index],
-                        style: TextStyle(color: textColor, fontSize: 13, fontFamily: 'monospace'),
+                        displayStr,
+                        style: TextStyle(
+                          fontSize: 38,
+                          fontWeight: FontWeight.bold,
+                          fontFamily: 'monospace',
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
                       ),
-                    );
-                  },
-                ),
-        ),
-      ],
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: isRunning
+                                ? Colors.orangeAccent
+                                : Theme.of(context).colorScheme.primary,
+                            foregroundColor: Colors.white,
+                          ),
+                          onPressed: StopwatchService.toggle,
+                          icon: Icon(isRunning ? Icons.pause : Icons.play_arrow),
+                          label: Text(isRunning ? 'Pause' : 'Start'),
+                        ),
+                        const SizedBox(width: 10),
+                        ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.white.withValues(alpha: 0.1),
+                            foregroundColor: textColor,
+                          ),
+                          onPressed: isRunning ? StopwatchService.recordLap : null,
+                          icon: const Icon(Icons.flag_outlined, size: 18),
+                          label: const Text('Lap'),
+                        ),
+                        const SizedBox(width: 10),
+                        ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.redAccent.withValues(alpha: 0.2),
+                            foregroundColor: Colors.redAccent,
+                          ),
+                          onPressed: StopwatchService.reset,
+                          icon: const Icon(Icons.refresh, size: 18),
+                          label: const Text('Reset'),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+                    Expanded(
+                      child: lapsList.isEmpty
+                          ? Center(
+                              child: Text(
+                                'No laps recorded',
+                                style: TextStyle(color: textColor.withValues(alpha: 0.4), fontSize: 12),
+                              ),
+                            )
+                          : ListView.builder(
+                              itemCount: lapsList.length,
+                              itemBuilder: (context, index) {
+                                return Container(
+                                  margin: const EdgeInsets.only(bottom: 6),
+                                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                                  decoration: BoxDecoration(
+                                    color: cardBg,
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Text(
+                                    lapsList[index],
+                                    style: TextStyle(color: textColor, fontSize: 13, fontFamily: 'monospace'),
+                                  ),
+                                );
+                              },
+                            ),
+                    ),
+                  ],
+                );
+              },
+            );
+          },
+        );
+      },
     );
   }
 
   // --- TIMER VIEW ---
+  String _formatOvertimeDisplay(int totalSeconds) {
+    final hours = totalSeconds ~/ 3600;
+    final minutes = (totalSeconds % 3600) ~/ 60;
+    final seconds = totalSeconds % 60;
+
+    if (hours > 0) {
+      return '+${hours.toString().padLeft(2, '0')}:${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
+    } else {
+      return '+${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
+    }
+  }
+
   void _showCustomTimeDialog() async {
     if (TimerService.isRunning) return;
 
@@ -705,6 +677,37 @@ class _ClockViewState extends State<ClockView> {
                       ),
                     ),
                   ),
+                ),
+                ValueListenableBuilder<int>(
+                  valueListenable: TimerService.overtimeNotifier,
+                  builder: (context, overtimeSecs, _) {
+                    if (overtimeSecs <= 0) return const SizedBox.shrink();
+                    return Container(
+                      margin: const EdgeInsets.only(top: 10),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: Colors.redAccent.withValues(alpha: 0.15),
+                        border: Border.all(color: Colors.redAccent.withValues(alpha: 0.5)),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.alarm_on_rounded, size: 14, color: Colors.redAccent),
+                          const SizedBox(width: 6),
+                          Text(
+                            'Ringing: ${_formatOvertimeDisplay(overtimeSecs)}',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              fontFamily: 'monospace',
+                              color: Colors.redAccent,
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
                 ),
                 const SizedBox(height: 16),
                 if (!isRunning) ...[

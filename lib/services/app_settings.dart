@@ -40,6 +40,12 @@ class AppSettings {
     bool? timerIsPaused,
     int? timerRemainingSeconds,
     int? accentColorValue,
+    int? timerOvertimeStartTimestampMs,
+    bool? stopwatchIsRunning,
+    int? stopwatchStartTimestampMs,
+    int? stopwatchAccumulatedMs,
+    List<String>? stopwatchLaps,
+    bool? enableEmojiPredictions,
   }) async {
     try {
       final file = _configFile;
@@ -110,6 +116,28 @@ class AppSettings {
       }
       if (accentColorValue != null) {
         current['accentColor'] = accentColorValue;
+      }
+      if (timerOvertimeStartTimestampMs != null) {
+        current['timerOvertimeStartTimestampMs'] = timerOvertimeStartTimestampMs;
+      } else {
+        current.remove('timerOvertimeStartTimestampMs');
+      }
+      if (stopwatchIsRunning != null) {
+        current['stopwatchIsRunning'] = stopwatchIsRunning;
+      }
+      if (stopwatchStartTimestampMs != null) {
+        current['stopwatchStartTimestampMs'] = stopwatchStartTimestampMs;
+      } else if (stopwatchIsRunning == false) {
+        current.remove('stopwatchStartTimestampMs');
+      }
+      if (stopwatchAccumulatedMs != null) {
+        current['stopwatchAccumulatedMs'] = stopwatchAccumulatedMs;
+      }
+      if (stopwatchLaps != null) {
+        current['stopwatchLaps'] = stopwatchLaps;
+      }
+      if (enableEmojiPredictions != null) {
+        current['enableEmojiPredictions'] = enableEmojiPredictions;
       }
 
       await file.writeAsString(jsonEncode(current));

@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:omoji/models/alarm_item.dart';
 import 'package:omoji/services/app_settings.dart';
+import 'package:omoji/services/timer_service.dart';
 import 'package:window_manager/window_manager.dart';
 
 class AlarmService {
@@ -72,6 +73,7 @@ class AlarmService {
   static Future<void> triggerAlarm(AlarmItem alarm) async {
     silencedAlarmNotice.value = null;
     activeRingingAlarm.value = alarm;
+    TimerService.startOvertimeForAlarm();
     _startAudioLoop();
     final timeoutSecs = alarm.autoSilenceMinutes * 60;
     _startTimeoutTimer(timeoutSecs, isAlarm: true, alarm: alarm);
@@ -130,7 +132,7 @@ class AlarmService {
   static void _startAudioLoop() {
     _audioLoopTimer?.cancel();
     playAlertSound();
-    _audioLoopTimer = Timer.periodic(const Duration(seconds: 4), (_) {
+    _audioLoopTimer = Timer.periodic(const Duration(seconds: 10), (_) {
       playAlertSound();
     });
   }
@@ -272,6 +274,7 @@ class AlarmService {
     _alarmRingingTimeoutTimer?.cancel();
     _alarmRingingTimeoutTimer = null;
     killAudioProcess();
+    TimerService.reset();
 
     try {
       windowManager.setAlwaysOnTop(false);

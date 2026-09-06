@@ -11,10 +11,13 @@ class TimerService {
   static bool isRunning = false;
   static bool isPaused = false;
   static int? targetTimestampMs;
+  static int? overtimeStartTimestampMs;
 
   static Timer? _periodicTimer;
+  static Timer? _overtimeTimer;
   static final ValueNotifier<int> remainingNotifier = ValueNotifier(300);
   static final ValueNotifier<bool> runningNotifier = ValueNotifier(false);
+  static final ValueNotifier<int> overtimeNotifier = ValueNotifier(0);
 
   static Future<void> init() async {
     final settings = await AppSettings.loadSettings();
@@ -23,6 +26,12 @@ class TimerService {
     final savedIsRunning = settings['timerIsRunning'] as bool? ?? false;
     final savedIsPaused = settings['timerIsPaused'] as bool? ?? false;
     final savedRemaining = settings['timerRemainingSeconds'] as int? ?? durationSeconds;
+    final savedOvertimeStartMs = settings['timerOvertimeStartTimestampMs'] as int?;
+
+    if (savedOvertimeStartMs != null) {
+      overtimeStartTimestampMs = savedOvertimeStartMs;
+      _startOvertimeTimer();
+    }
 
     if (savedIsRunning && savedTargetMs != null) {
       final nowMs = DateTime.now().millisecondsSinceEpoch;
@@ -37,6 +46,10 @@ class TimerService {
         remainingSeconds = 0;
         isRunning = false;
         isPaused = false;
+        if (overtimeStartTimestampMs == null) {
+          overtimeStartTimestampMs = savedTargetMs;
+          _startOvertimeTimer();
+        }
         _saveState();
       }
     } else if (savedIsPaused) {
@@ -46,14 +59,20 @@ class TimerService {
     } else {
       isRunning = false;
       isPaused = false;
-      remainingSeconds = durationSeconds;
+      remainingSeconds = savedRemaining;
     }
 
     _notify();
   }
 
+  static void startOvertimeForAlarm() {
+    overtimeStartTimestampMs = DateTime.now().millisecondsSinceEpoch;
+    _startOvertimeTimer();
+  }
+
   static void setDuration(int seconds) {
     if (isRunning) return;
+    _clearOvertime();
     durationSeconds = seconds;
     remainingSeconds = seconds;
     isPaused = false;
@@ -63,6 +82,7 @@ class TimerService {
 
   static void start() {
     if (remainingSeconds <= 0) return;
+    _clearOvertime();
     isRunning = true;
     isPaused = false;
     targetTimestampMs = DateTime.now().millisecondsSinceEpoch + (remainingSeconds * 1000);
@@ -83,12 +103,35 @@ class TimerService {
   static void reset() {
     _periodicTimer?.cancel();
     _periodicTimer = null;
+    _clearOvertime();
     isRunning = false;
     isPaused = false;
     targetTimestampMs = null;
     remainingSeconds = durationSeconds;
     _notify();
     _saveState();
+  }
+
+  static void _clearOvertime() {
+    _overtimeTimer?.cancel();
+    _overtimeTimer = null;
+    overtimeStartTimestampMs = null;
+    overtimeNotifier.value = 0;
+  }
+
+  static void _startOvertimeTimer() {
+    _overtimeTimer?.cancel();
+    if (overtimeStartTimestampMs == null) return;
+    final nowMs = DateTime.now().millisecondsSinceEpoch;
+    final elapsedSecs = (nowMs - overtimeStartTimestampMs!) ~/ 1000;
+    overtimeNotifier.value = elapsedSecs > 0 ? elapsedSecs : 0;
+
+    _overtimeTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (overtimeStartTimestampMs == null) return;
+      final curMs = DateTime.now().millisecondsSinceEpoch;
+      final secs = (curMs - overtimeStartTimestampMs!) ~/ 1000;
+      overtimeNotifier.value = secs > 0 ? secs : 0;
+    });
   }
 
   static void _startTimerLoop() {
@@ -109,6 +152,8 @@ class TimerService {
         isRunning = false;
         isPaused = false;
         targetTimestampMs = null;
+        overtimeStartTimestampMs = nowMs;
+        _startOvertimeTimer();
         _notify();
         _saveState();
         AlarmService.triggerTimerFinished('Timer Elapsed!');
@@ -128,6 +173,7 @@ class TimerService {
       timerIsRunning: isRunning,
       timerIsPaused: isPaused,
       timerRemainingSeconds: remainingSeconds,
+      timerOvertimeStartTimestampMs: overtimeStartTimestampMs,
     );
   }
 }
