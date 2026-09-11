@@ -12,6 +12,7 @@ import 'package:omoji/models/todo_item.dart';
 import 'package:omoji/services/alarm_service.dart';
 import 'package:omoji/services/app_settings.dart';
 import 'package:omoji/services/emoji_prediction_service.dart';
+import 'package:omoji/services/hotkey_service.dart';
 import 'package:omoji/services/timer_service.dart';
 import 'package:omoji/widgets/clipboard_view.dart';
 import 'package:omoji/widgets/clock_view.dart';
@@ -585,6 +586,13 @@ ui.close()'''
       customSoundPath: customSoundPath,
       useSystemDefault: useSystemDefault,
       loopIntervalSeconds: loopInterval,
+    );
+
+    final primaryTrigger = Platform.isWindows ? 'Super + Z' : 'Super + X';
+    final secondaryTrigger = (settings['secondaryTrigger'] as String?) ?? 'Ctrl + Alt + O';
+    HotkeyService.registerTriggers(
+      primaryTrigger: primaryTrigger,
+      secondaryTrigger: secondaryTrigger,
     );
   }
 

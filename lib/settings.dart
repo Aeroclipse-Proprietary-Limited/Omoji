@@ -58,7 +58,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _autoPaste = settings['autoPaste'] as bool? ?? true;
       _ignoreEmojisInClipboard = settings['ignoreEmojisInClipboard'] as bool? ?? true;
       _enableEmojiPredictions = settings['enableEmojiPredictions'] as bool? ?? true;
-      _primaryTriggerController.text = (settings['primaryTrigger'] as String?) ?? 'Super + .';
+      _primaryTriggerController.text = Platform.isWindows ? 'Super + Z' : 'Super + X';
       _secondaryTriggerController.text = (settings['secondaryTrigger'] as String?) ?? 'Ctrl + Alt + O';
     });
   }
@@ -127,7 +127,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (_isRegisteringHotkeys) return;
     setState(() => _isRegisteringHotkeys = true);
 
-    final primary = _primaryTriggerController.text.trim();
+    final primary = Platform.isWindows ? 'Super + Z' : 'Super + X';
     final secondary = _secondaryTriggerController.text.trim();
 
     await AppSettings.saveSettings(
@@ -432,42 +432,45 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             ],
                           ),
                           const SizedBox(height: 14),
-                          // Primary Trigger Input
+                          // Primary Trigger (Fixed per Platform)
                           Text(
-                            'Primary Trigger',
+                            'Primary Trigger (Fixed System Default)',
                             style: TextStyle(color: textColor, fontSize: 12, fontWeight: FontWeight.bold),
                           ),
                           const SizedBox(height: 6),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: TextField(
-                                  controller: _primaryTriggerController,
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                            decoration: BoxDecoration(
+                              color: isDark ? Colors.white.withValues(alpha: 0.04) : Colors.black.withValues(alpha: 0.03),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: cardBorderColor),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(Icons.bolt_rounded, color: Theme.of(context).colorScheme.primary, size: 18),
+                                const SizedBox(width: 10),
+                                Text(
+                                  Platform.isWindows ? 'Super + Z' : 'Super + X',
                                   style: TextStyle(color: textColor, fontSize: 13, fontWeight: FontWeight.bold),
-                                  decoration: InputDecoration(
-                                    hintText: 'e.g. Super + .',
-                                    prefixIcon: Icon(Icons.bolt_rounded, color: Theme.of(context).colorScheme.primary, size: 18),
-                                    isDense: true,
-                                    filled: true,
-                                    fillColor: isDark ? Colors.white.withValues(alpha: 0.04) : Colors.black.withValues(alpha: 0.03),
-                                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                                ),
+                                const Spacer(),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                  decoration: BoxDecoration(
+                                    color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.15),
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: Text(
+                                    'Primary Default',
+                                    style: TextStyle(
+                                      color: Theme.of(context).colorScheme.primary,
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold,
+                                    ),
                                   ),
                                 ),
-                              ),
-                              const SizedBox(width: 6),
-                              ElevatedButton.icon(
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.2),
-                                  foregroundColor: Theme.of(context).colorScheme.primary,
-                                  elevation: 0,
-                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                                ),
-                                icon: const Icon(Icons.fiber_manual_record_rounded, size: 14, color: Colors.redAccent),
-                                label: const Text('Record Key', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
-                                onPressed: () => _showRecordKeyDialog(_primaryTriggerController, 'Primary Trigger'),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
                           const SizedBox(height: 14),
                           // Secondary Trigger Input
