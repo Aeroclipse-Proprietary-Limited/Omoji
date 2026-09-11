@@ -15,7 +15,7 @@ if ! command -v rpmbuild &> /dev/null; then
 fi
 
 PACKAGE_NAME="omoji"
-VERSION="1.0.9"
+VERSION="1.1.0"
 BUILD_DIR="build/rpm"
 
 rm -rf "$BUILD_DIR"

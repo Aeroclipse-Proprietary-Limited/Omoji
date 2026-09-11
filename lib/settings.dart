@@ -235,7 +235,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             border: Border.all(color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.4)),
                           ),
                           child: Text(
-                            'v1.0.9',
+                            'v1.1.0',
                             style: TextStyle(
                               color: Theme.of(context).colorScheme.primary,
                               fontSize: 12,
@@ -331,14 +331,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           Color(0xFFB91C1C), // Blood Red (Default)
                           Color(0xFF8B5CF6), // Purple
                           Color(0xFF2563EB), // Sapphire
-                          Color(0xFFF59E0B), // Amber
                           Color(0xFFD97706), // Gold
                         ];
                         const accentLabels = [
                           'Blood Red (Default)',
                           'Purple',
                           'Sapphire',
-                          'Amber',
                           'Gold',
                         ];
 

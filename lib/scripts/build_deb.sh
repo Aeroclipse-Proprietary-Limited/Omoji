@@ -8,7 +8,7 @@ echo "Building Omoji release bundle..."
 flutter build linux --release
 
 # Setup directory structure
-VERSION="1.0.9"
+VERSION="1.1.0"
 BUILD_DIR="build/debian"
 PKG_DIR="${BUILD_DIR}/omoji_${VERSION}_amd64"
 rm -rf "${PKG_DIR}"
