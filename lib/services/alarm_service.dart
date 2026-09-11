@@ -4,6 +4,7 @@ import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:omoji/models/alarm_item.dart';
+import 'package:omoji/models/todo_item.dart';
 import 'package:omoji/services/app_settings.dart';
 import 'package:omoji/services/timer_service.dart';
 import 'package:window_manager/window_manager.dart';
@@ -13,16 +14,28 @@ class AlarmService {
   static Timer? _audioLoopTimer;
   static Timer? _alarmRingingTimeoutTimer;
   static List<AlarmItem> _alarms = [];
+  static List<TodoItem> _todos = [];
   static String? customAlarmSoundPath;
+  static bool useSystemDefaultSound = true;
+  static int audioLoopIntervalSeconds = 10;
   static Process? _currentAudioProcess;
 
   static final ValueNotifier<AlarmItem?> activeRingingAlarm = ValueNotifier(null);
   static final ValueNotifier<String?> activeRingingTimer = ValueNotifier(null);
   static final ValueNotifier<String?> silencedAlarmNotice = ValueNotifier(null);
 
-  static Future<void> init(List<AlarmItem> alarms, {String? customSoundPath}) async {
+  static Future<void> init(
+    List<AlarmItem> alarms, {
+    List<TodoItem>? todos,
+    String? customSoundPath,
+    bool? useSystemDefault,
+    int? loopIntervalSeconds,
+  }) async {
     _alarms = alarms;
+    if (todos != null) _todos = todos;
     customAlarmSoundPath = customSoundPath;
+    if (useSystemDefault != null) useSystemDefaultSound = useSystemDefault;
+    if (loopIntervalSeconds != null) audioLoopIntervalSeconds = loopIntervalSeconds.clamp(10, 93);
     _startMonitoring();
   }
 
@@ -30,8 +43,22 @@ class AlarmService {
     _alarms = alarms;
   }
 
+  static void updateTodos(List<TodoItem> todos) {
+    _todos = todos;
+  }
+
   static void updateCustomSoundPath(String? path) {
     customAlarmSoundPath = path;
+  }
+
+  static void updateAudioConfig({
+    bool? useSystemDefault,
+    String? customPath,
+    int? loopIntervalSeconds,
+  }) {
+    if (useSystemDefault != null) useSystemDefaultSound = useSystemDefault;
+    if (customPath != null) customAlarmSoundPath = customPath;
+    if (loopIntervalSeconds != null) audioLoopIntervalSeconds = loopIntervalSeconds.clamp(10, 93);
   }
 
   static void _startMonitoring() {
@@ -68,6 +95,29 @@ class AlarmService {
         }
       }
     }
+
+    // Check To-Do Reminders
+    for (var todo in _todos) {
+      if (todo.isCompleted || todo.hasNotified) continue;
+      if (now.isAfter(todo.targetDateTime) || now.isAtSameMomentAs(todo.targetDateTime)) {
+        todo.hasNotified = true;
+        AppSettings.saveSettings(todos: _todos);
+        triggerTodoNotification(todo);
+        break;
+      }
+    }
+  }
+
+  static Future<void> triggerTodoNotification(TodoItem todo) async {
+    silencedAlarmNotice.value = null;
+    activeRingingTimer.value = '📌 To-Do Reminder: ${todo.title}';
+    _startAudioLoop();
+    _startTimeoutTimer(300, isAlarm: false, label: 'To-Do: ${todo.title}');
+    _sendSystemNotification(
+      title: '📌 Reminder: ${todo.title}',
+      body: todo.description.isNotEmpty ? todo.description : 'Scheduled event reminder',
+    );
+    _unminimizeWindow();
   }
 
   static Future<void> triggerAlarm(AlarmItem alarm) async {
@@ -132,7 +182,8 @@ class AlarmService {
   static void _startAudioLoop() {
     _audioLoopTimer?.cancel();
     playAlertSound();
-    _audioLoopTimer = Timer.periodic(const Duration(seconds: 10), (_) {
+    final intervalSecs = audioLoopIntervalSeconds.clamp(10, 93);
+    _audioLoopTimer = Timer.periodic(Duration(seconds: intervalSecs), (_) {
       playAlertSound();
     });
   }
@@ -146,9 +197,11 @@ class AlarmService {
     }
     if (Platform.isLinux) {
       try {
+        Process.run('pkill', ['-9', '-f', 'pw-play']);
         Process.run('pkill', ['-9', '-f', 'ffplay']);
         Process.run('pkill', ['-9', '-f', 'mpg123']);
         Process.run('pkill', ['-9', '-f', 'paplay']);
+        Process.run('pkill', ['-9', '-f', 'aplay']);
         Process.run('pkill', ['-9', '-f', 'cvlc']);
         Process.run('pkill', ['-9', '-f', 'canberra-gtk-play']);
       } catch (_) {}
@@ -163,8 +216,17 @@ class AlarmService {
     killAudioProcess();
     final soundPath = customPath ?? customAlarmSoundPath;
 
-    if (soundPath != null && soundPath.isNotEmpty && File(soundPath).existsSync()) {
+    // Play custom audio file if enabled and exists
+    if (!useSystemDefaultSound && soundPath != null && soundPath.isNotEmpty && File(soundPath).existsSync()) {
       if (Platform.isLinux) {
+        try {
+          _currentAudioProcess = await Process.start(
+            'pw-play',
+            [soundPath],
+          );
+          return;
+        } catch (_) {}
+
         try {
           _currentAudioProcess = await Process.start(
             'ffplay',
@@ -174,15 +236,15 @@ class AlarmService {
         } catch (_) {}
 
         try {
-          _currentAudioProcess = await Process.start(
-            'cvlc',
-            ['--play-and-exit', soundPath],
-          );
+          _currentAudioProcess = await Process.start('paplay', [soundPath]);
           return;
         } catch (_) {}
 
         try {
-          _currentAudioProcess = await Process.start('paplay', [soundPath]);
+          _currentAudioProcess = await Process.start(
+            'cvlc',
+            ['--play-and-exit', soundPath],
+          );
           return;
         } catch (_) {}
 

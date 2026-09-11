@@ -85,7 +85,7 @@ class ClipboardView extends StatelessWidget {
                               item.isPinned ? Icons.push_pin : Icons.circle,
                               size: item.isPinned ? 12 : 8,
                               color: item.isPinned
-                                  ? Colors.teal
+                                  ? Theme.of(context).colorScheme.primary
                                   : textColor.withValues(alpha: 0.3),
                             ),
                             const SizedBox(width: 10),
@@ -122,7 +122,7 @@ class ClipboardView extends StatelessWidget {
                             if (isEditing)
                               IconButton(
                                 icon: const Icon(Icons.check_rounded, size: 16),
-                                color: Colors.teal,
+                                color: Theme.of(context).colorScheme.primary,
                                 constraints: const BoxConstraints(),
                                 padding: const EdgeInsets.all(4),
                                 onPressed: () =>

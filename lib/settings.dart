@@ -1,9 +1,11 @@
 import 'dart:io';
 import 'dart:ui'; // Required for ImageFilter.blur
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:omoji/main.dart';
 import 'package:omoji/services/alarm_service.dart';
 import 'package:omoji/services/app_settings.dart';
+import 'package:omoji/services/hotkey_service.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -19,15 +21,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _autoPaste = true;
   bool _ignoreEmojisInClipboard = true;
   bool _enableEmojiPredictions = true;
+  bool _useSystemDefaultSound = true;
+  int _audioLoopIntervalSeconds = 10;
+
+  late TextEditingController _primaryTriggerController;
+  late TextEditingController _secondaryTriggerController;
+  bool _isRegisteringHotkeys = false;
 
   @override
   void initState() {
     super.initState();
+    _primaryTriggerController = TextEditingController(text: 'Super + .');
+    _secondaryTriggerController = TextEditingController(text: 'Ctrl + Alt + O');
     _loadSettings();
   }
 
   @override
   void dispose() {
+    _primaryTriggerController.dispose();
+    _secondaryTriggerController.dispose();
     AlarmService.killAudioProcess();
     super.dispose();
   }
@@ -36,10 +48,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final settings = await AppSettings.loadSettings();
     setState(() {
       _customAlarmSoundPath = settings['customAlarmSoundPath'] as String?;
+      final savedUseSystemDefault = settings['useSystemDefaultSound'] as bool?;
+      if (savedUseSystemDefault != null) {
+        _useSystemDefaultSound = savedUseSystemDefault;
+      } else {
+        _useSystemDefaultSound = (_customAlarmSoundPath == null || _customAlarmSoundPath!.isEmpty);
+      }
+      _audioLoopIntervalSeconds = (settings['audioLoopIntervalSeconds'] as int?) ?? 10;
       _autoPaste = settings['autoPaste'] as bool? ?? true;
       _ignoreEmojisInClipboard = settings['ignoreEmojisInClipboard'] as bool? ?? true;
       _enableEmojiPredictions = settings['enableEmojiPredictions'] as bool? ?? true;
+      _primaryTriggerController.text = (settings['primaryTrigger'] as String?) ?? 'Super + .';
+      _secondaryTriggerController.text = (settings['secondaryTrigger'] as String?) ?? 'Ctrl + Alt + O';
     });
+  }
+
+  String _formatIntervalLabel(int seconds) {
+    if (seconds < 60) return '${seconds}s';
+    final mins = seconds ~/ 60;
+    final secs = seconds % 60;
+    if (secs == 0) return '${mins}m';
+    return '${mins}m ${secs}s';
   }
 
   Future<void> _pickCustomSound() async {
@@ -55,14 +84,64 @@ class _SettingsScreenState extends State<SettingsScreen> {
           if (path.isNotEmpty) {
             setState(() {
               _customAlarmSoundPath = path;
+              _useSystemDefaultSound = false;
             });
-            await AppSettings.saveSettings(customAlarmSoundPath: path);
-            AlarmService.updateCustomSoundPath(path);
+            await AppSettings.saveSettings(
+              customAlarmSoundPath: path,
+              useSystemDefaultSound: false,
+            );
+            AlarmService.updateAudioConfig(
+              useSystemDefault: false,
+              customPath: path,
+            );
           }
         }
       } catch (e) {
         debugPrint('Failed to run zenity file picker: $e');
       }
+    }
+  }
+
+  Future<void> _openFeedbackEmail() async {
+    const mailtoUrl = 'mailto:godlyttn@outlook.com?subject=Feedback%20on%20omoji';
+    if (Platform.isLinux) {
+      try {
+        await Process.run('xdg-open', [mailtoUrl]);
+      } catch (_) {
+        try {
+          await Process.run('xdg-email', ['mailto:godlyttn@outlook.com', '--subject', 'Feedback on omoji']);
+        } catch (_) {}
+      }
+    } else if (Platform.isMacOS) {
+      try {
+        await Process.run('open', [mailtoUrl]);
+      } catch (_) {}
+    } else if (Platform.isWindows) {
+      try {
+        await Process.run('cmd', ['/c', 'start', '', mailtoUrl]);
+      } catch (_) {}
+    }
+  }
+
+  Future<void> _saveAndGoBack(BuildContext context) async {
+    if (_isRegisteringHotkeys) return;
+    setState(() => _isRegisteringHotkeys = true);
+
+    final primary = _primaryTriggerController.text.trim();
+    final secondary = _secondaryTriggerController.text.trim();
+
+    await AppSettings.saveSettings(
+      primaryTrigger: primary,
+      secondaryTrigger: secondary,
+    );
+
+    await HotkeyService.registerTriggers(
+      primaryTrigger: primary,
+      secondaryTrigger: secondary,
+    );
+
+    if (context.mounted) {
+      Navigator.pop(context);
     }
   }
 
@@ -74,65 +153,94 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final cardBg = isDark ? Colors.white.withValues(alpha: 0.04) : Colors.black.withValues(alpha: 0.03);
     final cardBorderColor = isDark ? Colors.white.withValues(alpha: 0.1) : Colors.black.withValues(alpha: 0.08);
 
-    return Scaffold(
-      backgroundColor: Colors.transparent,
-      body: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 20.0, sigmaY: 20.0),
-          child: Container(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(16),
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: isDark
-                    ? [
-                        const Color(0xFF2E2E2E).withValues(alpha: 0.65),
-                        const Color(0xFF1A1A1A).withValues(alpha: 0.45),
-                        const Color(0xFF121212).withValues(alpha: 0.75),
-                      ]
-                    : [
-                        const Color(0xFFFFFFFF).withValues(alpha: 0.65),
-                        const Color(0xFFE0E0E0).withValues(alpha: 0.45),
-                        const Color(0xFFF5F5F5).withValues(alpha: 0.75),
-                      ],
-                stops: const [0.0, 0.4, 1.0],
-              ),
-              border: Border.all(
-                color: isDark ? Colors.white.withValues(alpha: 0.15) : Colors.black.withValues(alpha: 0.15),
-                width: 1.5,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: isDark ? 0.5 : 0.2),
-                  blurRadius: 30,
-                  offset: const Offset(0, 15),
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) async {
+        if (didPop) return;
+        await _saveAndGoBack(context);
+      },
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        body: ClipRRect(
+          borderRadius: BorderRadius.circular(16),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 20.0, sigmaY: 20.0),
+            child: Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(16),
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: isDark
+                      ? [
+                          const Color(0xFF2E2E2E).withValues(alpha: 0.65),
+                          const Color(0xFF1A1A1A).withValues(alpha: 0.45),
+                          const Color(0xFF121212).withValues(alpha: 0.75),
+                        ]
+                      : [
+                          const Color(0xFFFFFFFF).withValues(alpha: 0.65),
+                          const Color(0xFFE0E0E0).withValues(alpha: 0.45),
+                          const Color(0xFFF5F5F5).withValues(alpha: 0.75),
+                        ],
+                  stops: const [0.0, 0.4, 1.0],
                 ),
-              ],
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(18.0),
-              child: SingleChildScrollView(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Header
-                    Row(
-                      children: [
-                        IconButton(
-                          icon: const Icon(Icons.arrow_back_ios_new_rounded),
-                          color: textColor,
-                          splashRadius: 20,
-                          onPressed: () => Navigator.pop(context),
-                        ),
-                        const SizedBox(width: 8),
+                border: Border.all(
+                  color: isDark ? Colors.white.withValues(alpha: 0.15) : Colors.black.withValues(alpha: 0.15),
+                  width: 1.5,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: isDark ? 0.5 : 0.2),
+                    blurRadius: 30,
+                    offset: const Offset(0, 15),
+                  ),
+                ],
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(18.0),
+                child: SingleChildScrollView(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Header
+                      Row(
+                        children: [
+                          IconButton(
+                            icon: _isRegisteringHotkeys
+                                ? SizedBox(
+                                    width: 18,
+                                    height: 18,
+                                    child: CircularProgressIndicator(strokeWidth: 2, color: textColor),
+                                  )
+                                : const Icon(Icons.arrow_back_ios_new_rounded),
+                            color: textColor,
+                            splashRadius: 20,
+                            onPressed: () => _saveAndGoBack(context),
+                          ),
+                          const SizedBox(width: 8),
                         Text(
                           'Settings',
                           style: TextStyle(
                             color: textColor,
                             fontSize: 18,
                             fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.4)),
+                          ),
+                          child: Text(
+                            'v1.0.9',
+                            style: TextStyle(
+                              color: Theme.of(context).colorScheme.primary,
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ),
                       ],
@@ -168,7 +276,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                   label: 'Dark',
                                   icon: Icons.dark_mode_rounded,
                                   isActive: currentTheme == ThemeMode.dark,
-                                  onTap: () => themeNotifier.value = ThemeMode.dark,
+                                  onTap: () async {
+                                    themeNotifier.value = ThemeMode.dark;
+                                    await AppSettings.saveSettings(theme: ThemeMode.dark);
+                                  },
                                 ),
                               ),
                               Expanded(
@@ -177,7 +288,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                   label: 'Light',
                                   icon: Icons.light_mode_rounded,
                                   isActive: currentTheme == ThemeMode.light,
-                                  onTap: () => themeNotifier.value = ThemeMode.light,
+                                  onTap: () async {
+                                    themeNotifier.value = ThemeMode.light;
+                                    await AppSettings.saveSettings(theme: ThemeMode.light);
+                                  },
                                 ),
                               ),
                               Expanded(
@@ -186,7 +300,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                   label: 'System',
                                   icon: Icons.settings_brightness_rounded,
                                   isActive: currentTheme == ThemeMode.system,
-                                  onTap: () => themeNotifier.value = ThemeMode.system,
+                                  onTap: () async {
+                                    themeNotifier.value = ThemeMode.system;
+                                    await AppSettings.saveSettings(theme: ThemeMode.system);
+                                  },
                                 ),
                               ),
                             ],
@@ -211,18 +328,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       valueListenable: accentColorNotifier,
                       builder: (context, currentAccent, _) {
                         const accentColors = [
-                          Color(0xFF009688), // Teal (Default)
+                          Color(0xFFB91C1C), // Blood Red (Default)
                           Color(0xFF8B5CF6), // Purple
                           Color(0xFF2563EB), // Sapphire
                           Color(0xFFF59E0B), // Amber
-                          Color(0xFF06B6D4), // Cyan
+                          Color(0xFFD97706), // Gold
                         ];
                         const accentLabels = [
-                          'Teal (Default)',
+                          'Blood Red (Default)',
                           'Purple',
                           'Sapphire',
                           'Amber',
-                          'Cyan',
+                          'Gold',
                         ];
 
                         return Container(
@@ -274,6 +391,124 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           ),
                         );
                       },
+                    ),
+
+                    const SizedBox(height: 24),
+
+                    // Section: Launch Triggers (Primary & Secondary)
+                    Text(
+                      'App Launch Triggers (Primary & Secondary)',
+                      style: TextStyle(
+                        color: subtitleColor,
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: cardBg,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: cardBorderColor),
+                      ),
+                      padding: const EdgeInsets.all(14),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(Icons.keyboard_outlined, color: Theme.of(context).colorScheme.primary, size: 20),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  'Configure primary and secondary system hotkeys to open Omoji from anywhere',
+                                  style: TextStyle(
+                                    color: subtitleColor,
+                                    fontSize: 11,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 14),
+                          // Primary Trigger Input
+                          Text(
+                            'Primary Trigger',
+                            style: TextStyle(color: textColor, fontSize: 12, fontWeight: FontWeight.bold),
+                          ),
+                          const SizedBox(height: 6),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: TextField(
+                                  controller: _primaryTriggerController,
+                                  style: TextStyle(color: textColor, fontSize: 13, fontWeight: FontWeight.bold),
+                                  decoration: InputDecoration(
+                                    hintText: 'e.g. Super + .',
+                                    prefixIcon: Icon(Icons.bolt_rounded, color: Theme.of(context).colorScheme.primary, size: 18),
+                                    isDense: true,
+                                    filled: true,
+                                    fillColor: isDark ? Colors.white.withValues(alpha: 0.04) : Colors.black.withValues(alpha: 0.03),
+                                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              ElevatedButton.icon(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.2),
+                                  foregroundColor: Theme.of(context).colorScheme.primary,
+                                  elevation: 0,
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                ),
+                                icon: const Icon(Icons.fiber_manual_record_rounded, size: 14, color: Colors.redAccent),
+                                label: const Text('Record Key', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                                onPressed: () => _showRecordKeyDialog(_primaryTriggerController, 'Primary Trigger'),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 14),
+                          // Secondary Trigger Input
+                          Text(
+                            'Secondary Trigger',
+                            style: TextStyle(color: textColor, fontSize: 12, fontWeight: FontWeight.bold),
+                          ),
+                          const SizedBox(height: 6),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: TextField(
+                                  controller: _secondaryTriggerController,
+                                  style: TextStyle(color: textColor, fontSize: 13, fontWeight: FontWeight.bold),
+                                  decoration: InputDecoration(
+                                    hintText: 'e.g. Ctrl + Alt + O',
+                                    prefixIcon: Icon(Icons.bolt_outlined, color: Theme.of(context).colorScheme.primary, size: 18),
+                                    isDense: true,
+                                    filled: true,
+                                    fillColor: isDark ? Colors.white.withValues(alpha: 0.04) : Colors.black.withValues(alpha: 0.03),
+                                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              ElevatedButton.icon(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.2),
+                                  foregroundColor: Theme.of(context).colorScheme.primary,
+                                  elevation: 0,
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                ),
+                                icon: const Icon(Icons.fiber_manual_record_rounded, size: 14, color: Colors.redAccent),
+                                label: const Text('Record Key', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                                onPressed: () => _showRecordKeyDialog(_secondaryTriggerController, 'Secondary Trigger'),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
                     ),
 
                     const SizedBox(height: 24),
@@ -423,9 +658,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
                     const SizedBox(height: 24),
 
-                    // Section: Custom Alarm Sound
+                    // Section: Alarm Sound & Loop Configuration
                     Text(
-                      'Alarm Sound',
+                      'Alarm Sound & Loop Interval',
                       style: TextStyle(
                         color: subtitleColor,
                         fontSize: 13,
@@ -445,88 +680,203 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
+                          // Sound Selection Options: System Default vs Custom File
+                          Text(
+                            'Sound Source',
+                            style: TextStyle(color: textColor, fontSize: 12, fontWeight: FontWeight.bold),
+                          ),
+                          const SizedBox(height: 6),
+                          RadioListTile<bool>(
+                            dense: true,
+                            contentPadding: EdgeInsets.zero,
+                            title: Text('Use System Default Sound', style: TextStyle(color: textColor, fontSize: 13)),
+                            value: true,
+                            groupValue: _useSystemDefaultSound,
+                            activeColor: Theme.of(context).colorScheme.primary,
+                            onChanged: (val) async {
+                              if (val != null) {
+                                setState(() {
+                                  _useSystemDefaultSound = val;
+                                });
+                                await AppSettings.saveSettings(useSystemDefaultSound: val);
+                                AlarmService.updateAudioConfig(useSystemDefault: val);
+                              }
+                            },
+                          ),
+                          RadioListTile<bool>(
+                            dense: true,
+                            contentPadding: EdgeInsets.zero,
+                            title: Text('Custom Audio File (MP3 / WAV / OGG)', style: TextStyle(color: textColor, fontSize: 13)),
+                            value: false,
+                            groupValue: _useSystemDefaultSound,
+                            activeColor: Theme.of(context).colorScheme.primary,
+                            onChanged: (val) async {
+                              if (val != null) {
+                                setState(() {
+                                  _useSystemDefaultSound = val;
+                                });
+                                await AppSettings.saveSettings(useSystemDefaultSound: val);
+                                AlarmService.updateAudioConfig(useSystemDefault: val);
+                              }
+                            },
+                          ),
+                          if (!_useSystemDefaultSound) ...[
+                            const SizedBox(height: 8),
+                            Row(
+                              children: [
+                                Icon(Icons.music_note_rounded, color: Theme.of(context).colorScheme.primary, size: 20),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(
+                                    _customAlarmSoundPath != null
+                                        ? _customAlarmSoundPath!.split('/').last
+                                        : 'No custom sound chosen',
+                                    style: TextStyle(
+                                      color: textColor,
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            if (_customAlarmSoundPath != null) ...[
+                              const SizedBox(height: 4),
+                              Text(
+                                _customAlarmSoundPath!,
+                                style: TextStyle(
+                                  color: subtitleColor,
+                                  fontSize: 11,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
+                            const SizedBox(height: 10),
+                            Row(
+                              children: [
+                                ElevatedButton.icon(
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Theme.of(context).colorScheme.primary,
+                                    foregroundColor: Colors.white,
+                                    visualDensity: VisualDensity.compact,
+                                  ),
+                                  onPressed: () async {
+                                    await _pickCustomSound();
+                                    await AppSettings.saveSettings(useSystemDefaultSound: false);
+                                    AlarmService.updateAudioConfig(useSystemDefault: false);
+                                  },
+                                  icon: const Icon(Icons.folder_open_rounded, size: 16),
+                                  label: const Text('Browse MP3', style: TextStyle(fontSize: 12)),
+                                ),
+                                const SizedBox(width: 8),
+                                OutlinedButton.icon(
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: _isPlayingTest ? Colors.redAccent : Theme.of(context).colorScheme.primary,
+                                    side: BorderSide(
+                                      color: _isPlayingTest ? Colors.redAccent : Theme.of(context).colorScheme.primary,
+                                    ),
+                                    visualDensity: VisualDensity.compact,
+                                  ),
+                                  onPressed: () {
+                                    if (_isPlayingTest) {
+                                      AlarmService.killAudioProcess();
+                                      setState(() {
+                                        _isPlayingTest = false;
+                                      });
+                                    } else {
+                                      setState(() {
+                                        _isPlayingTest = true;
+                                      });
+                                      AlarmService.playAlertSound(customPath: _customAlarmSoundPath);
+                                    }
+                                  },
+                                  icon: Icon(_isPlayingTest ? Icons.stop_rounded : Icons.play_arrow_rounded, size: 16),
+                                  label: Text(_isPlayingTest ? 'Stop Sound' : 'Test Sound', style: const TextStyle(fontSize: 12)),
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.restart_alt_rounded, size: 20),
+                                  color: _customAlarmSoundPath != null ? Colors.orangeAccent : textColor.withValues(alpha: 0.3),
+                                  tooltip: 'Reset to Default System Sound',
+                                  onPressed: _customAlarmSoundPath == null
+                                      ? null
+                                      : () async {
+                                          setState(() {
+                                            _customAlarmSoundPath = null;
+                                            _useSystemDefaultSound = true;
+                                          });
+                                          await AppSettings.saveSettings(clearCustomAlarmSound: true, useSystemDefaultSound: true);
+                                          AlarmService.updateAudioConfig(useSystemDefault: true, customPath: null);
+                                        },
+                                ),
+                              ],
+                            ),
+                          ],
+                          Divider(color: cardBorderColor, height: 24),
+                          // Loop Interval Section (Range: 10s to 1m 33s / 93s)
                           Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              const Icon(Icons.music_note_rounded, color: Colors.teal, size: 20),
-                              const SizedBox(width: 10),
-                              Expanded(
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Audio Repeat Loop Interval',
+                                    style: TextStyle(color: textColor, fontSize: 13, fontWeight: FontWeight.bold),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    'How frequently the sound repeats (10s – 1m 33s)',
+                                    style: TextStyle(color: subtitleColor, fontSize: 11),
+                                  ),
+                                ],
+                              ),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.15),
+                                  border: Border.all(color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.4)),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
                                 child: Text(
-                                  _customAlarmSoundPath != null
-                                      ? _customAlarmSoundPath!.split('/').last
-                                      : 'Default System Sound',
+                                  _formatIntervalLabel(_audioLoopIntervalSeconds),
                                   style: TextStyle(
-                                    color: textColor,
+                                    color: Theme.of(context).colorScheme.primary,
                                     fontSize: 13,
                                     fontWeight: FontWeight.bold,
                                   ),
-                                  overflow: TextOverflow.ellipsis,
                                 ),
                               ),
                             ],
                           ),
-                          if (_customAlarmSoundPath != null) ...[
-                            const SizedBox(height: 4),
-                            Text(
-                              _customAlarmSoundPath!,
-                              style: TextStyle(
-                                color: subtitleColor,
-                                fontSize: 11,
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ],
-                          const SizedBox(height: 12),
-                          Row(
+                          const SizedBox(height: 10),
+                          Slider(
+                            value: _audioLoopIntervalSeconds.toDouble().clamp(10.0, 93.0),
+                            min: 10.0,
+                            max: 93.0,
+                            divisions: 83,
+                            activeColor: Theme.of(context).colorScheme.primary,
+                            label: _formatIntervalLabel(_audioLoopIntervalSeconds),
+                            onChanged: (val) {
+                              setState(() {
+                                _audioLoopIntervalSeconds = val.round();
+                              });
+                            },
+                            onChangeEnd: (val) async {
+                              final interval = val.round();
+                              await AppSettings.saveSettings(audioLoopIntervalSeconds: interval);
+                              AlarmService.updateAudioConfig(loopIntervalSeconds: interval);
+                            },
+                          ),
+                          Wrap(
+                            spacing: 6,
+                            runSpacing: 4,
                             children: [
-                              ElevatedButton.icon(
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.teal,
-                                  foregroundColor: Colors.white,
-                                  visualDensity: VisualDensity.compact,
-                                ),
-                                onPressed: _pickCustomSound,
-                                icon: const Icon(Icons.folder_open_rounded, size: 16),
-                                label: const Text('Browse MP3', style: TextStyle(fontSize: 12)),
-                              ),
-                              const SizedBox(width: 8),
-                              OutlinedButton.icon(
-                                style: OutlinedButton.styleFrom(
-                                  foregroundColor: _isPlayingTest ? Colors.redAccent : Colors.teal,
-                                  side: BorderSide(
-                                    color: _isPlayingTest ? Colors.redAccent : Colors.teal,
-                                  ),
-                                  visualDensity: VisualDensity.compact,
-                                ),
-                                onPressed: () {
-                                  if (_isPlayingTest) {
-                                    AlarmService.killAudioProcess();
-                                    setState(() {
-                                      _isPlayingTest = false;
-                                    });
-                                  } else {
-                                    setState(() {
-                                      _isPlayingTest = true;
-                                    });
-                                    AlarmService.playAlertSound(customPath: _customAlarmSoundPath);
-                                  }
-                                },
-                                icon: Icon(_isPlayingTest ? Icons.stop_rounded : Icons.play_arrow_rounded, size: 16),
-                                label: Text(_isPlayingTest ? 'Stop Sound' : 'Test Sound', style: const TextStyle(fontSize: 12)),
-                              ),
-                              IconButton(
-                                icon: const Icon(Icons.restart_alt_rounded, size: 20),
-                                color: _customAlarmSoundPath != null ? Colors.orangeAccent : textColor.withValues(alpha: 0.3),
-                                tooltip: 'Reset to Default System Sound',
-                                onPressed: _customAlarmSoundPath == null
-                                    ? null
-                                    : () async {
-                                        setState(() {
-                                          _customAlarmSoundPath = null;
-                                        });
-                                        await AppSettings.saveSettings(clearCustomAlarmSound: true);
-                                        AlarmService.updateCustomSoundPath(null);
-                                      },
-                              ),
+                              _buildIntervalChip(10, '10s (Default)'),
+                              _buildIntervalChip(15, '15s'),
+                              _buildIntervalChip(30, '30s'),
+                              _buildIntervalChip(60, '1m (60s)'),
+                              _buildIntervalChip(93, '1m 33s (93s)'),
                             ],
                           ),
                         ],
@@ -546,53 +896,59 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       ),
                     ),
                     const SizedBox(height: 10),
-                    Container(
-                      width: double.infinity,
-                      decoration: BoxDecoration(
-                        color: cardBg,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: cardBorderColor),
-                      ),
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                      child: Row(
-                        children: [
-                          CircleAvatar(
-                            radius: 22,
-                            backgroundColor: Colors.teal.withValues(alpha: 0.2),
-                            backgroundImage: const AssetImage('lib/assets/imgs/acc pic.jpg'),
-                          ),
-                          const SizedBox(width: 14),
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Kevin Manda',
-                                style: TextStyle(
-                                  color: textColor,
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.bold,
+                    InkWell(
+                      onTap: _openFeedbackEmail,
+                      borderRadius: BorderRadius.circular(12),
+                      splashColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+                      highlightColor: Colors.transparent,
+                      child: Container(
+                        width: double.infinity,
+                        decoration: BoxDecoration(
+                          color: cardBg,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: cardBorderColor),
+                        ),
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                        child: Row(
+                          children: [
+                            CircleAvatar(
+                              radius: 22,
+                              backgroundColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.2),
+                              backgroundImage: const AssetImage('lib/assets/imgs/acc pic.jpg'),
+                            ),
+                            const SizedBox(width: 14),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Kevin Manda',
+                                  style: TextStyle(
+                                    color: textColor,
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.bold,
+                                  ),
                                 ),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                'Creator of Omoji',
-                                style: TextStyle(
-                                  color: subtitleColor,
-                                  fontSize: 12,
+                                const SizedBox(height: 2),
+                                Text(
+                                  'Creator of Omoji',
+                                  style: TextStyle(
+                                    color: subtitleColor,
+                                    fontSize: 12,
+                                  ),
                                 ),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                'v1.0.9',
-                                style: TextStyle(
-                                  color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.9),
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.bold,
+                                const SizedBox(height: 2),
+                                Text(
+                                  'Aeroclipse Pty Ltd',
+                                  style: TextStyle(
+                                    color: Theme.of(context).colorScheme.primary,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                  ),
                                 ),
-                              ),
-                            ],
-                          ),
-                        ],
+                              ],
+                            ),
+                          ],
+                        ),
                       ),
                     ),
 
@@ -642,7 +998,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                   context: context,
                                   label: 'card',
                                   icon: Icons.credit_card_rounded,
-                                  color: Colors.teal,
+                                  color: Theme.of(context).colorScheme.primary,
                                   isActive: _showCardForm,
                                   onTap: () {
                                     setState(() {
@@ -691,7 +1047,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
         ),
       ),
-    );
+    ),
+  );
   }
 
   Widget _buildThemeOption({
@@ -856,7 +1213,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               });
             },
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.teal,
+              backgroundColor: Theme.of(context).colorScheme.primary,
               foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(vertical: 14),
               shape: RoundedRectangleBorder(
@@ -904,7 +1261,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           decoration: InputDecoration(
             hintText: hintText,
             hintStyle: TextStyle(color: textColor.withValues(alpha: 0.35), fontSize: 13),
-            prefixIcon: Icon(icon, color: Colors.teal, size: 16),
+            prefixIcon: Icon(icon, color: Theme.of(context).colorScheme.primary, size: 16),
             filled: true,
             fillColor: inputBg,
             contentPadding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
@@ -914,11 +1271,217 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(10),
-              borderSide: BorderSide(color: Colors.teal.withValues(alpha: 0.6), width: 1.5),
+              borderSide: BorderSide(color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.6), width: 1.5),
             ),
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildIntervalChip(int seconds, String label) {
+    final primaryColor = Theme.of(context).colorScheme.primary;
+    final isSelected = _audioLoopIntervalSeconds == seconds;
+
+    return ChoiceChip(
+      label: Text(
+        label,
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+          color: isSelected ? Colors.white : primaryColor,
+        ),
+      ),
+      selected: isSelected,
+      selectedColor: primaryColor,
+      backgroundColor: primaryColor.withValues(alpha: 0.1),
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 0),
+      labelPadding: const EdgeInsets.symmetric(horizontal: 4),
+      visualDensity: VisualDensity.compact,
+      onSelected: (val) async {
+        if (val) {
+          setState(() {
+            _audioLoopIntervalSeconds = seconds;
+          });
+          await AppSettings.saveSettings(audioLoopIntervalSeconds: seconds);
+          AlarmService.updateAudioConfig(loopIntervalSeconds: seconds);
+        }
+      },
+    );
+  }
+
+  void _showRecordKeyDialog(TextEditingController controller, String label) {
+    String recorded = controller.text;
+    FocusNode focusNode = FocusNode();
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            final isDark = Theme.of(context).brightness == Brightness.dark;
+            final primaryColor = Theme.of(context).colorScheme.primary;
+            final textColor = isDark ? Colors.white : Colors.black87;
+
+            return AlertDialog(
+              backgroundColor: isDark ? const Color(0xFF2E2E2E) : Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              title: Row(
+                children: [
+                  Icon(Icons.keyboard_alt_rounded, color: primaryColor),
+                  const SizedBox(width: 8),
+                  Text('Press Keys for $label', style: TextStyle(fontSize: 15, color: textColor, fontWeight: FontWeight.bold)),
+                ],
+              ),
+              content: KeyboardListener(
+                focusNode: focusNode..requestFocus(),
+                onKeyEvent: (event) {
+                  if (event is KeyDownEvent) {
+                    final pressedKeys = HardwareKeyboard.instance.logicalKeysPressed;
+                    final keys = <String>[];
+
+                    final isSuper = pressedKeys.any((k) =>
+                        k == LogicalKeyboardKey.meta ||
+                        k == LogicalKeyboardKey.metaLeft ||
+                        k == LogicalKeyboardKey.metaRight ||
+                        k == LogicalKeyboardKey.superKey) ||
+                        HardwareKeyboard.instance.isMetaPressed;
+
+                    final isCtrl = pressedKeys.any((k) =>
+                        k == LogicalKeyboardKey.control ||
+                        k == LogicalKeyboardKey.controlLeft ||
+                        k == LogicalKeyboardKey.controlRight) ||
+                        HardwareKeyboard.instance.isControlPressed;
+
+                    final isAlt = pressedKeys.any((k) =>
+                        k == LogicalKeyboardKey.alt ||
+                        k == LogicalKeyboardKey.altLeft ||
+                        k == LogicalKeyboardKey.altRight) ||
+                        HardwareKeyboard.instance.isAltPressed;
+
+                    final isShift = pressedKeys.any((k) =>
+                        k == LogicalKeyboardKey.shift ||
+                        k == LogicalKeyboardKey.shiftLeft ||
+                        k == LogicalKeyboardKey.shiftRight) ||
+                        HardwareKeyboard.instance.isShiftPressed;
+
+                    if (isSuper) keys.add('Super');
+                    if (isCtrl) keys.add('Ctrl');
+                    if (isAlt) keys.add('Alt');
+                    if (isShift) keys.add('Shift');
+
+                    final ignored = {
+                      LogicalKeyboardKey.meta,
+                      LogicalKeyboardKey.metaLeft,
+                      LogicalKeyboardKey.metaRight,
+                      LogicalKeyboardKey.superKey,
+                      LogicalKeyboardKey.control,
+                      LogicalKeyboardKey.controlLeft,
+                      LogicalKeyboardKey.controlRight,
+                      LogicalKeyboardKey.alt,
+                      LogicalKeyboardKey.altLeft,
+                      LogicalKeyboardKey.altRight,
+                      LogicalKeyboardKey.shift,
+                      LogicalKeyboardKey.shiftLeft,
+                      LogicalKeyboardKey.shiftRight,
+                      LogicalKeyboardKey.numLock,
+                      LogicalKeyboardKey.capsLock,
+                      LogicalKeyboardKey.scrollLock,
+                    };
+
+                    LogicalKeyboardKey? mainKey;
+                    for (final k in pressedKeys) {
+                      if (!ignored.contains(k)) {
+                        mainKey = k;
+                        break;
+                      }
+                    }
+                    if (mainKey == null && !ignored.contains(event.logicalKey)) {
+                      mainKey = event.logicalKey;
+                    }
+
+                    if (mainKey != null) {
+                      String labelStr = '';
+                      if (mainKey == LogicalKeyboardKey.period) {
+                        labelStr = '.';
+                      } else if (mainKey == LogicalKeyboardKey.comma) {
+                        labelStr = ',';
+                      } else if (mainKey == LogicalKeyboardKey.slash) {
+                        labelStr = '/';
+                      } else if (mainKey == LogicalKeyboardKey.minus) {
+                        labelStr = '-';
+                      } else if (mainKey == LogicalKeyboardKey.space) {
+                        labelStr = 'Space';
+                      } else {
+                        labelStr = mainKey.keyLabel.trim().toUpperCase();
+                        labelStr = labelStr.replaceAll('KEY ', '').replaceAll('NUM ', '');
+                      }
+
+                      if (labelStr.isNotEmpty && !keys.contains(labelStr)) {
+                        keys.add(labelStr);
+                      }
+                    }
+
+                    if (keys.isNotEmpty) {
+                      setDialogState(() {
+                        recorded = keys.join(' + ');
+                      });
+                    }
+                  }
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+                  decoration: BoxDecoration(
+                    color: primaryColor.withValues(alpha: 0.12),
+                    border: Border.all(color: primaryColor.withValues(alpha: 0.5)),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'Press your desired key combination on your keyboard',
+                        style: TextStyle(fontSize: 12, color: textColor.withValues(alpha: 0.7)),
+                      ),
+                      const SizedBox(height: 14),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: primaryColor),
+                        ),
+                        child: Text(
+                          recorded.isEmpty ? 'Listening for keys...' : recorded,
+                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: primaryColor),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+                ),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(backgroundColor: primaryColor),
+                  onPressed: () {
+                    if (recorded.isNotEmpty) {
+                      setState(() {
+                        controller.text = recorded;
+                      });
+                    }
+                    Navigator.pop(context);
+                  },
+                  child: const Text('Assign Key', style: TextStyle(color: Colors.white)),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 }

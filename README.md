@@ -39,7 +39,13 @@ Omoji is designed to pop up instantly via a keyboard shortcut (`Super + .` / `Cm
    sudo rpm -i ./omoji-1.0.0-1.x86_64.rpm
    ```
 
-#### 3. Custom Hotkey Setup (Linux)
+#### 3. User-Level Install (No Sudo Required)
+
+```bash
+./lib/scripts/install_user.sh
+```
+
+#### 4. Custom Hotkey Setup (Linux)
 - Open **System Settings** -> **Keyboard** -> **Keyboard Shortcuts** -> **Custom Shortcuts**.
 - Add shortcut:
   - **Name**: `Omoji`
@@ -73,6 +79,11 @@ git clone git@github.com:Aeroclipse-Proprietary-Limited/Omoji.git
 cd Omoji
 flutter build linux --release
 ```
+
+- **User-Level Install (No root required)**:
+  ```bash
+  ./lib/scripts/install_user.sh
+  ```
 
 - **Generate `.deb` Package**:
   ```bash

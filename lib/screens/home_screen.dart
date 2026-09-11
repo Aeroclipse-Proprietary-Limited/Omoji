@@ -8,6 +8,7 @@ import 'package:flutter/services.dart';
 import 'package:omoji/data/emoji_map.dart';
 import 'package:omoji/models/alarm_item.dart';
 import 'package:omoji/models/clipboard_item.dart';
+import 'package:omoji/models/todo_item.dart';
 import 'package:omoji/services/alarm_service.dart';
 import 'package:omoji/services/app_settings.dart';
 import 'package:omoji/services/emoji_prediction_service.dart';
@@ -55,6 +56,7 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
   }
   List<ClipboardItem> _clipboardHistory = [];
   List<AlarmItem> _alarms = [];
+  List<TodoItem> _todos = [];
   String _selectedTab = 'clipboard';
   String? _lastClipboardText;
   Timer? _clipboardTimer;
@@ -566,9 +568,24 @@ ui.close()'''
             .map((item) => AlarmItem.fromJson(item as Map<String, dynamic>))
             .toList();
       }
+      final todosRaw = settings['todos'] as List<dynamic>?;
+      if (todosRaw != null) {
+        _todos = todosRaw
+            .map((item) => TodoItem.fromJson(item as Map<String, dynamic>))
+            .toList();
+      }
     });
     final customSoundPath = settings['customAlarmSoundPath'] as String?;
-    AlarmService.init(_alarms, customSoundPath: customSoundPath);
+    final savedUseSystemDefault = settings['useSystemDefaultSound'] as bool?;
+    final useSystemDefault = savedUseSystemDefault ?? (customSoundPath == null || customSoundPath.isEmpty);
+    final loopInterval = settings['audioLoopIntervalSeconds'] as int?;
+    AlarmService.init(
+      _alarms,
+      todos: _todos,
+      customSoundPath: customSoundPath,
+      useSystemDefault: useSystemDefault,
+      loopIntervalSeconds: loopInterval,
+    );
   }
 
   void _startClipboardMonitoring() {
@@ -1008,6 +1025,12 @@ ui.close()'''
                               onAlarmsChanged: (updated) {
                                 setState(() {
                                   _alarms = updated;
+                                });
+                              },
+                              todos: _todos,
+                              onTodosChanged: (updated) {
+                                setState(() {
+                                  _todos = updated;
                                 });
                               },
                             )

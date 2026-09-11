@@ -9,8 +9,8 @@ import 'package:omoji/services/stopwatch_service.dart';
 import 'package:omoji/services/timer_service.dart';
 import 'package:window_manager/window_manager.dart';
 
-final ValueNotifier<ThemeMode> themeNotifier = ValueNotifier(ThemeMode.dark);
-final ValueNotifier<Color> accentColorNotifier = ValueNotifier(const Color(0xFF009688));
+final ValueNotifier<ThemeMode> themeNotifier = ValueNotifier(ThemeMode.system);
+final ValueNotifier<Color> accentColorNotifier = ValueNotifier(const Color(0xFFB91C1C));
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -53,9 +53,10 @@ void main() async {
   await TimerService.init();
   await StopwatchService.init();
 
-  ThemeMode initialTheme = ThemeMode.dark;
+  ThemeMode initialTheme = ThemeMode.system;
   final themeName = settings['theme'] as String?;
   if (themeName == 'light') initialTheme = ThemeMode.light;
+  if (themeName == 'dark') initialTheme = ThemeMode.dark;
   if (themeName == 'system') initialTheme = ThemeMode.system;
 
   themeNotifier.value = initialTheme;

@@ -59,9 +59,9 @@ class EmojiView extends StatelessWidget {
                 borderRadius: BorderRadius.circular(10),
                 child: Container(
                   decoration: BoxDecoration(
-                    color: Colors.teal.withValues(alpha: 0.18),
+                    color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.18),
                     border:
-                        Border.all(color: Colors.teal.withValues(alpha: 0.35)),
+                        Border.all(color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.35)),
                     borderRadius: BorderRadius.circular(10),
                   ),
                   alignment: Alignment.center,

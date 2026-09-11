@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:omoji/models/alarm_item.dart';
+import 'package:omoji/models/todo_item.dart';
 import 'package:omoji/services/alarm_service.dart';
 import 'package:omoji/services/app_settings.dart';
 import 'package:omoji/services/stopwatch_service.dart';
@@ -8,11 +9,15 @@ import 'package:omoji/services/timer_service.dart';
 class ClockView extends StatefulWidget {
   final List<AlarmItem> alarms;
   final ValueChanged<List<AlarmItem>> onAlarmsChanged;
+  final List<TodoItem> todos;
+  final ValueChanged<List<TodoItem>> onTodosChanged;
 
   const ClockView({
     super.key,
     required this.alarms,
     required this.onAlarmsChanged,
+    this.todos = const [],
+    required this.onTodosChanged,
   });
 
   @override
@@ -20,7 +25,8 @@ class ClockView extends StatefulWidget {
 }
 
 class _ClockViewState extends State<ClockView> {
-  String _subTab = 'alarms'; // 'alarms', 'stopwatch', 'timer'
+  String _subTab = 'alarms'; // 'alarms', 'stopwatch', 'timer', 'todo'
+  String _todoFilter = 'all'; // 'all', 'upcoming', 'completed'
 
   String _formatTimerDisplay(int totalSeconds) {
     final hours = totalSeconds ~/ 3600;
@@ -42,6 +48,7 @@ class _ClockViewState extends State<ClockView> {
         return StatefulBuilder(
           builder: (context, setDialogState) {
             final isDark = Theme.of(context).brightness == Brightness.dark;
+            final primaryColor = Theme.of(context).colorScheme.primary;
             final timeStr =
                 '${selectedTime.hour.toString().padLeft(2, '0')}:${selectedTime.minute.toString().padLeft(2, '0')}';
             const dayNames = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
@@ -69,16 +76,16 @@ class _ClockViewState extends State<ClockView> {
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                       decoration: BoxDecoration(
-                        color: Colors.teal.withValues(alpha: 0.15),
-                        border: Border.all(color: Colors.teal),
+                        color: primaryColor.withValues(alpha: 0.15),
+                        border: Border.all(color: primaryColor),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Text(
                         timeStr,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 36,
                           fontWeight: FontWeight.bold,
-                          color: Colors.teal,
+                          color: primaryColor,
                         ),
                       ),
                     ),
@@ -130,36 +137,69 @@ class _ClockViewState extends State<ClockView> {
                     ],
                   ),
                   const SizedBox(height: 12),
-                  FittedBox(
-                    fit: BoxFit.scaleDown,
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: List.generate(7, (idx) {
-                        final dayNum = idx + 1;
-                        final isSelected = selectedDays.contains(dayNum);
-                        return Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 2),
-                          child: ChoiceChip(
-                            label: Text(dayNames[idx], style: const TextStyle(fontSize: 11)),
-                            selected: isSelected,
-                            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 0),
-                            labelPadding: const EdgeInsets.symmetric(horizontal: 4),
-                            onSelected: (val) {
-                              setDialogState(() {
-                                if (val) {
-                                  selectedDays.add(dayNum);
-                                } else {
-                                  selectedDays.remove(dayNum);
-                                }
-                                selectedDays.sort();
-                              });
-                            },
-                            selectedColor: Colors.teal,
-                            visualDensity: VisualDensity.compact,
-                          ),
-                        );
-                      }),
-                    ),
+                  Column(
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: List.generate(4, (idx) {
+                          final dayNum = idx + 1;
+                          final isSelected = selectedDays.contains(dayNum);
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 3),
+                            child: ChoiceChip(
+                              showCheckmark: false,
+                              label: Text(dayNames[idx], style: TextStyle(fontSize: 12, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal)),
+                              selected: isSelected,
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                              labelPadding: EdgeInsets.zero,
+                              onSelected: (val) {
+                                setDialogState(() {
+                                  if (val) {
+                                    selectedDays.add(dayNum);
+                                  } else {
+                                    selectedDays.remove(dayNum);
+                                  }
+                                  selectedDays.sort();
+                                });
+                              },
+                              selectedColor: primaryColor,
+                              visualDensity: VisualDensity.compact,
+                            ),
+                          );
+                        }),
+                      ),
+                      const SizedBox(height: 6),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: List.generate(3, (idx) {
+                          final dayIdx = idx + 4;
+                          final dayNum = dayIdx + 1;
+                          final isSelected = selectedDays.contains(dayNum);
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 3),
+                            child: ChoiceChip(
+                              showCheckmark: false,
+                              label: Text(dayNames[dayIdx], style: TextStyle(fontSize: 12, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal)),
+                              selected: isSelected,
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                              labelPadding: EdgeInsets.zero,
+                              onSelected: (val) {
+                                setDialogState(() {
+                                  if (val) {
+                                    selectedDays.add(dayNum);
+                                  } else {
+                                    selectedDays.remove(dayNum);
+                                  }
+                                  selectedDays.sort();
+                                });
+                              },
+                              selectedColor: primaryColor,
+                              visualDensity: VisualDensity.compact,
+                            ),
+                          );
+                        }),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -169,7 +209,7 @@ class _ClockViewState extends State<ClockView> {
                   child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
                 ),
                 ElevatedButton(
-                  style: ElevatedButton.styleFrom(backgroundColor: Colors.teal),
+                  style: ElevatedButton.styleFrom(backgroundColor: primaryColor),
                   onPressed: () {
                     final timeHHmm =
                         '${selectedTime.hour.toString().padLeft(2, '0')}:${selectedTime.minute.toString().padLeft(2, '0')}';
@@ -197,6 +237,231 @@ class _ClockViewState extends State<ClockView> {
     );
   }
 
+  // --- To-Do / Event Reminder Add/Edit Dialog ---
+  void _showAddEditTodoDialog([TodoItem? existing]) async {
+    final titleController = TextEditingController(text: existing?.title ?? '');
+    final descController = TextEditingController(text: existing?.description ?? '');
+    DateTime selectedDateTime = existing?.targetDateTime ?? DateTime.now().add(const Duration(days: 7));
+
+    await showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            final isDark = Theme.of(context).brightness == Brightness.dark;
+            final primaryColor = Theme.of(context).colorScheme.primary;
+            final textColor = isDark ? Colors.white : Colors.black87;
+
+            final dateFormatted =
+                '${selectedDateTime.year}-${selectedDateTime.month.toString().padLeft(2, '0')}-${selectedDateTime.day.toString().padLeft(2, '0')}';
+            final timeFormatted =
+                '${selectedDateTime.hour.toString().padLeft(2, '0')}:${selectedDateTime.minute.toString().padLeft(2, '0')}';
+
+            return AlertDialog(
+              backgroundColor: isDark ? const Color(0xFF2E2E2E) : Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              title: Row(
+                children: [
+                  Icon(Icons.event_note_rounded, color: primaryColor),
+                  const SizedBox(width: 8),
+                  Text(
+                    existing == null ? 'Add Event Reminder' : 'Edit Event Reminder',
+                    style: TextStyle(fontSize: 16, color: textColor, fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    TextField(
+                      controller: titleController,
+                      style: TextStyle(color: textColor, fontSize: 14),
+                      decoration: InputDecoration(
+                        labelText: 'Event Title / Task',
+                        hintText: 'e.g. Meeting next week, Doctor appointment',
+                        labelStyle: TextStyle(color: textColor.withValues(alpha: 0.7)),
+                        border: const OutlineInputBorder(),
+                        isDense: true,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: descController,
+                      style: TextStyle(color: textColor, fontSize: 13),
+                      maxLines: 2,
+                      decoration: InputDecoration(
+                        labelText: 'Description (Optional)',
+                        hintText: 'Add notes or location info',
+                        labelStyle: TextStyle(color: textColor.withValues(alpha: 0.7)),
+                        border: const OutlineInputBorder(),
+                        isDense: true,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Quick Presets:',
+                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: textColor.withValues(alpha: 0.7)),
+                    ),
+                    const SizedBox(height: 6),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 4,
+                      children: [
+                        _buildPresetChip('+1 Day', const Duration(days: 1), selectedDateTime, (newDate) {
+                          setDialogState(() => selectedDateTime = newDate);
+                        }),
+                        _buildPresetChip('+1 Week', const Duration(days: 7), selectedDateTime, (newDate) {
+                          setDialogState(() => selectedDateTime = newDate);
+                        }),
+                        _buildPresetChip('+2 Weeks', const Duration(days: 14), selectedDateTime, (newDate) {
+                          setDialogState(() => selectedDateTime = newDate);
+                        }),
+                        _buildPresetChip('+1 Month', const Duration(days: 30), selectedDateTime, (newDate) {
+                          setDialogState(() => selectedDateTime = newDate);
+                        }),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+                    Text(
+                      'Event Date & Time:',
+                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: textColor.withValues(alpha: 0.7)),
+                    ),
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: primaryColor,
+                              side: BorderSide(color: primaryColor.withValues(alpha: 0.5)),
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                            ),
+                            icon: const Icon(Icons.calendar_today_rounded, size: 16),
+                            label: Text(dateFormatted, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                            onPressed: () async {
+                              final pickedDate = await showDatePicker(
+                                context: context,
+                                initialDate: selectedDateTime,
+                                firstDate: DateTime.now().subtract(const Duration(days: 1)),
+                                lastDate: DateTime.now().add(const Duration(days: 365 * 5)),
+                              );
+                              if (pickedDate != null) {
+                                setDialogState(() {
+                                  selectedDateTime = DateTime(
+                                    pickedDate.year,
+                                    pickedDate.month,
+                                    pickedDate.day,
+                                    selectedDateTime.hour,
+                                    selectedDateTime.minute,
+                                  );
+                                });
+                              }
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: primaryColor,
+                              side: BorderSide(color: primaryColor.withValues(alpha: 0.5)),
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                            ),
+                            icon: const Icon(Icons.access_time_rounded, size: 16),
+                            label: Text(timeFormatted, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                            onPressed: () async {
+                              final pickedTime = await showTimePicker(
+                                context: context,
+                                initialTime: TimeOfDay(
+                                  hour: selectedDateTime.hour,
+                                  minute: selectedDateTime.minute,
+                                ),
+                              );
+                              if (pickedTime != null) {
+                                setDialogState(() {
+                                  selectedDateTime = DateTime(
+                                    selectedDateTime.year,
+                                    selectedDateTime.month,
+                                    selectedDateTime.day,
+                                    pickedTime.hour,
+                                    pickedTime.minute,
+                                  );
+                                });
+                              }
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+                ),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(backgroundColor: primaryColor),
+                  onPressed: () {
+                    final title = titleController.text.trim();
+                    if (title.isEmpty) return;
+
+                    List<TodoItem> updated = List<TodoItem>.from(widget.todos);
+                    if (existing != null) {
+                      existing.title = title;
+                      existing.description = descController.text.trim();
+                      existing.targetDateTime = selectedDateTime;
+                      existing.hasNotified = false; // reset notification state if date updated
+                    } else {
+                      final newTodo = TodoItem(
+                        id: DateTime.now().millisecondsSinceEpoch.toString(),
+                        title: title,
+                        description: descController.text.trim(),
+                        targetDateTime: selectedDateTime,
+                      );
+                      updated.add(newTodo);
+                    }
+
+                    widget.onTodosChanged(updated);
+                    AppSettings.saveSettings(todos: updated);
+                    AlarmService.updateTodos(updated);
+                    Navigator.pop(context);
+                  },
+                  child: const Text('Save Event', style: TextStyle(color: Colors.white)),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildPresetChip(String label, Duration duration, DateTime currentSelection, Function(DateTime) onSelect) {
+    final primaryColor = Theme.of(context).colorScheme.primary;
+    return InkWell(
+      onTap: () {
+        onSelect(DateTime.now().add(duration));
+      },
+      borderRadius: BorderRadius.circular(6),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: primaryColor.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(color: primaryColor.withValues(alpha: 0.3)),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: primaryColor),
+        ),
+      ),
+    );
+  }
+
   Widget _buildSubTabButton(String id, String label, IconData icon) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final isActive = _subTab == id;
@@ -208,7 +473,7 @@ class _ClockViewState extends State<ClockView> {
         onTap: () => setState(() => _subTab = id),
         borderRadius: BorderRadius.circular(8),
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
           decoration: BoxDecoration(
             color: isActive
                 ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.2)
@@ -222,7 +487,7 @@ class _ClockViewState extends State<ClockView> {
             mainAxisSize: MainAxisSize.min,
             children: [
               Icon(icon, size: 14, color: isActive ? Theme.of(context).colorScheme.primary : textColor.withValues(alpha: 0.6)),
-              const SizedBox(width: 6),
+              const SizedBox(width: 5),
               Text(
                 label,
                 style: TextStyle(
@@ -251,15 +516,17 @@ class _ClockViewState extends State<ClockView> {
 
     return Column(
       children: [
-        // Sub-tabs header: Alarms | Stopwatch | Timer
+        // Sub-tabs header: Alarms | Stopwatch | Timer | To-Do
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             _buildSubTabButton('alarms', 'Alarms', Icons.alarm),
-            const SizedBox(width: 8),
+            const SizedBox(width: 6),
             _buildSubTabButton('stopwatch', 'Stopwatch', Icons.timer_outlined),
-            const SizedBox(width: 8),
+            const SizedBox(width: 6),
             _buildSubTabButton('timer', 'Timer', Icons.hourglass_bottom_rounded),
+            const SizedBox(width: 6),
+            _buildSubTabButton('todo', 'To-Do', Icons.event_note_rounded),
           ],
         ),
         const SizedBox(height: 12),
@@ -270,7 +537,9 @@ class _ClockViewState extends State<ClockView> {
               ? _buildAlarmsView(cardBg, cardBorder, textColor)
               : _subTab == 'stopwatch'
                   ? _buildStopwatchView(cardBg, cardBorder, textColor)
-                  : _buildTimerView(cardBg, cardBorder, textColor),
+                  : _subTab == 'timer'
+                      ? _buildTimerView(cardBg, cardBorder, textColor)
+                      : _buildTodoView(cardBg, cardBorder, textColor),
         ),
       ],
     );
@@ -532,13 +801,14 @@ class _ClockViewState extends State<ClockView> {
         final isDark = Theme.of(context).brightness == Brightness.dark;
         final cardBg = isDark ? const Color(0xFF2E2E2E) : Colors.white;
         final textColor = isDark ? Colors.white : Colors.black87;
+        final primaryColor = Theme.of(context).colorScheme.primary;
 
         return AlertDialog(
           backgroundColor: cardBg,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           title: Row(
             children: [
-              const Icon(Icons.timer_outlined, color: Colors.teal),
+              Icon(Icons.timer_outlined, color: primaryColor),
               const SizedBox(width: 8),
               Text('Set Custom Timer', style: TextStyle(color: textColor, fontSize: 16)),
             ],
@@ -554,17 +824,17 @@ class _ClockViewState extends State<ClockView> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  _buildTimeUnitInput(hoursController, 'Hours', textColor),
+                  _buildTimeUnitInput(hoursController, 'Hours', textColor, primaryColor),
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 4),
                     child: Text(':', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: textColor)),
                   ),
-                  _buildTimeUnitInput(minutesController, 'Mins', textColor),
+                  _buildTimeUnitInput(minutesController, 'Mins', textColor, primaryColor),
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 4),
                     child: Text(':', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: textColor)),
                   ),
-                  _buildTimeUnitInput(secondsController, 'Secs', textColor),
+                  _buildTimeUnitInput(secondsController, 'Secs', textColor, primaryColor),
                 ],
               ),
             ],
@@ -576,7 +846,7 @@ class _ClockViewState extends State<ClockView> {
             ),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.teal,
+                backgroundColor: primaryColor,
                 foregroundColor: Colors.white,
               ),
               onPressed: () {
@@ -597,7 +867,7 @@ class _ClockViewState extends State<ClockView> {
     );
   }
 
-  Widget _buildTimeUnitInput(TextEditingController controller, String label, Color textColor) {
+  Widget _buildTimeUnitInput(TextEditingController controller, String label, Color textColor, Color primaryColor) {
     return SizedBox(
       width: 65,
       child: TextField(
@@ -616,7 +886,7 @@ class _ClockViewState extends State<ClockView> {
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(8),
-            borderSide: const BorderSide(color: Colors.teal, width: 1.5),
+            borderSide: BorderSide(color: primaryColor, width: 1.5),
           ),
         ),
       ),
@@ -772,6 +1042,230 @@ class _ClockViewState extends State<ClockView> {
       onSelected: (val) {
         if (val) {
           TimerService.setDuration(seconds);
+        }
+      },
+    );
+  }
+
+  // --- TO-DO / EVENT REMINDERS VIEW ---
+  Widget _buildTodoView(Color cardBg, Color cardBorder, Color textColor) {
+    final primaryColor = Theme.of(context).colorScheme.primary;
+
+    List<TodoItem> filteredTodos = widget.todos.where((item) {
+      if (_todoFilter == 'upcoming') return !item.isCompleted;
+      if (_todoFilter == 'completed') return item.isCompleted;
+      return true;
+    }).toList();
+
+    // Sort chronologically by targetDateTime
+    filteredTodos.sort((a, b) => a.targetDateTime.compareTo(b.targetDateTime));
+
+    return Column(
+      children: [
+        // Header Controls
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Row(
+              children: [
+                _buildTodoFilterChip('all', 'All (${widget.todos.length})'),
+                const SizedBox(width: 4),
+                _buildTodoFilterChip('upcoming', 'Upcoming (${widget.todos.where((t) => !t.isCompleted).length})'),
+                const SizedBox(width: 4),
+                _buildTodoFilterChip('completed', 'Done (${widget.todos.where((t) => t.isCompleted).length})'),
+              ],
+            ),
+            IconButton(
+              icon: Icon(Icons.add_circle_outline, color: primaryColor, size: 20),
+              onPressed: () => _showAddEditTodoDialog(),
+              tooltip: 'Add Event Reminder',
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Expanded(
+          child: filteredTodos.isEmpty
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.event_available_rounded, size: 36, color: textColor.withValues(alpha: 0.3)),
+                      const SizedBox(height: 8),
+                      Text(
+                        _todoFilter == 'completed'
+                            ? 'No completed tasks yet.'
+                            : 'No upcoming event reminders.\nClick + to set a reminder for a week later or custom date.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: textColor.withValues(alpha: 0.5),
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+              : ListView.builder(
+                  itemCount: filteredTodos.length,
+                  itemBuilder: (context, index) {
+                    final todo = filteredTodos[index];
+                    final isOverdue = !todo.isCompleted && DateTime.now().isAfter(todo.targetDateTime);
+
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      decoration: BoxDecoration(
+                        color: cardBg,
+                        border: Border.all(
+                          color: isOverdue
+                              ? Colors.redAccent.withValues(alpha: 0.4)
+                              : todo.isCompleted
+                                  ? cardBorder
+                                  : primaryColor.withValues(alpha: 0.3),
+                        ),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      child: Row(
+                        children: [
+                          Checkbox(
+                            value: todo.isCompleted,
+                            activeColor: primaryColor,
+                            onChanged: (val) {
+                              setState(() {
+                                todo.isCompleted = val ?? false;
+                              });
+                              widget.onTodosChanged(widget.todos);
+                              AppSettings.saveSettings(todos: widget.todos);
+                              AlarmService.updateTodos(widget.todos);
+                            },
+                          ),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  todo.title,
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.bold,
+                                    decoration: todo.isCompleted ? TextDecoration.lineThrough : null,
+                                    color: todo.isCompleted
+                                        ? textColor.withValues(alpha: 0.4)
+                                        : textColor,
+                                  ),
+                                ),
+                                if (todo.description.isNotEmpty) ...[
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    todo.description,
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      color: textColor.withValues(alpha: 0.6),
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ],
+                                const SizedBox(height: 4),
+                                Row(
+                                  children: [
+                                    Icon(
+                                      Icons.schedule_rounded,
+                                      size: 12,
+                                      color: isOverdue
+                                          ? Colors.redAccent
+                                          : todo.isCompleted
+                                              ? textColor.withValues(alpha: 0.3)
+                                              : primaryColor,
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      todo.formattedTargetDate,
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        color: isOverdue
+                                            ? Colors.redAccent
+                                            : textColor.withValues(alpha: 0.6),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                                      decoration: BoxDecoration(
+                                        color: isOverdue
+                                            ? Colors.redAccent.withValues(alpha: 0.15)
+                                            : todo.isCompleted
+                                                ? textColor.withValues(alpha: 0.1)
+                                                : primaryColor.withValues(alpha: 0.15),
+                                        borderRadius: BorderRadius.circular(4),
+                                      ),
+                                      child: Text(
+                                        todo.timeRemainingSummary,
+                                        style: TextStyle(
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.bold,
+                                          color: isOverdue
+                                              ? Colors.redAccent
+                                              : todo.isCompleted
+                                                  ? textColor.withValues(alpha: 0.4)
+                                                  : primaryColor,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.edit_outlined, size: 16),
+                            color: textColor.withValues(alpha: 0.6),
+                            onPressed: () => _showAddEditTodoDialog(todo),
+                            tooltip: 'Edit Event',
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.delete_outline, size: 16),
+                            color: Colors.redAccent.withValues(alpha: 0.7),
+                            onPressed: () {
+                              final updated = List<TodoItem>.from(widget.todos)..remove(todo);
+                              widget.onTodosChanged(updated);
+                              AppSettings.saveSettings(todos: updated);
+                              AlarmService.updateTodos(updated);
+                            },
+                            tooltip: 'Delete Event',
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTodoFilterChip(String id, String label) {
+    final primaryColor = Theme.of(context).colorScheme.primary;
+    final isSelected = _todoFilter == id;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? Colors.white : Colors.black87;
+
+    return ChoiceChip(
+      label: Text(
+        label,
+        style: TextStyle(
+          fontSize: 10,
+          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+          color: isSelected ? Colors.white : textColor.withValues(alpha: 0.7),
+        ),
+      ),
+      selected: isSelected,
+      selectedColor: primaryColor,
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 0),
+      labelPadding: const EdgeInsets.symmetric(horizontal: 4),
+      visualDensity: VisualDensity.compact,
+      onSelected: (val) {
+        if (val) {
+          setState(() => _todoFilter = id);
         }
       },
     );

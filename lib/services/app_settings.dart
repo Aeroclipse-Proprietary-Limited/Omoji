@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:omoji/models/alarm_item.dart';
 import 'package:omoji/models/clipboard_item.dart';
+import 'package:omoji/models/todo_item.dart';
 
 class AppSettings {
   static File get _configFile {
@@ -32,6 +33,7 @@ class AppSettings {
     bool? autoPaste,
     bool? ignoreEmojisInClipboard,
     List<AlarmItem>? alarms,
+    List<TodoItem>? todos,
     String? customAlarmSoundPath,
     bool clearCustomAlarmSound = false,
     int? timerDurationSeconds,
@@ -46,6 +48,10 @@ class AppSettings {
     int? stopwatchAccumulatedMs,
     List<String>? stopwatchLaps,
     bool? enableEmojiPredictions,
+    String? primaryTrigger,
+    String? secondaryTrigger,
+    bool? useSystemDefaultSound,
+    int? audioLoopIntervalSeconds,
   }) async {
     try {
       final file = _configFile;
@@ -91,6 +97,9 @@ class AppSettings {
       }
       if (alarms != null) {
         current['alarms'] = alarms.map((item) => item.toJson()).toList();
+      }
+      if (todos != null) {
+        current['todos'] = todos.map((item) => item.toJson()).toList();
       }
       if (clearCustomAlarmSound) {
         current.remove('customAlarmSoundPath');
@@ -138,6 +147,18 @@ class AppSettings {
       }
       if (enableEmojiPredictions != null) {
         current['enableEmojiPredictions'] = enableEmojiPredictions;
+      }
+      if (primaryTrigger != null) {
+        current['primaryTrigger'] = primaryTrigger;
+      }
+      if (secondaryTrigger != null) {
+        current['secondaryTrigger'] = secondaryTrigger;
+      }
+      if (useSystemDefaultSound != null) {
+        current['useSystemDefaultSound'] = useSystemDefaultSound;
+      }
+      if (audioLoopIntervalSeconds != null) {
+        current['audioLoopIntervalSeconds'] = audioLoopIntervalSeconds;
       }
 
       await file.writeAsString(jsonEncode(current));
