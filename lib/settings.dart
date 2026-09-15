@@ -235,7 +235,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             border: Border.all(color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.4)),
                           ),
                           child: Text(
-                            'v1.1.0',
+                            'v1.2.0',
                             style: TextStyle(
                               color: Theme.of(context).colorScheme.primary,
                               fontSize: 12,
@@ -329,12 +329,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       builder: (context, currentAccent, _) {
                         const accentColors = [
                           Color(0xFFB91C1C), // Blood Red (Default)
+                          Color(0xFF10B981), // Emerald Green
                           Color(0xFF8B5CF6), // Purple
                           Color(0xFF2563EB), // Sapphire
                           Color(0xFFD97706), // Gold
                         ];
                         const accentLabels = [
                           'Blood Red (Default)',
+                          'Emerald Green',
                           'Purple',
                           'Sapphire',
                           'Gold',

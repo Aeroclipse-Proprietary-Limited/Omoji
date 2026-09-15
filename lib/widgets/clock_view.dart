@@ -27,6 +27,7 @@ class ClockView extends StatefulWidget {
 class _ClockViewState extends State<ClockView> {
   String _subTab = 'alarms'; // 'alarms', 'stopwatch', 'timer', 'todo'
   String _todoFilter = 'all'; // 'all', 'upcoming', 'completed'
+  final Set<String> _expandedTodoIds = {};
 
   String _formatTimerDisplay(int totalSeconds) {
     final hours = totalSeconds ~/ 3600;
@@ -1109,131 +1110,345 @@ class _ClockViewState extends State<ClockView> {
                   itemBuilder: (context, index) {
                     final todo = filteredTodos[index];
                     final isOverdue = !todo.isCompleted && DateTime.now().isAfter(todo.targetDateTime);
+                    final isExpanded = _expandedTodoIds.contains(todo.id);
+                    final isDark = Theme.of(context).brightness == Brightness.dark;
 
-                    return Container(
+                    return AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
                       margin: const EdgeInsets.only(bottom: 8),
                       decoration: BoxDecoration(
-                        color: cardBg,
+                        color: isExpanded
+                            ? (isDark
+                                ? primaryColor.withValues(alpha: 0.1)
+                                : primaryColor.withValues(alpha: 0.06))
+                            : cardBg,
                         border: Border.all(
                           color: isOverdue
-                              ? Colors.redAccent.withValues(alpha: 0.4)
-                              : todo.isCompleted
-                                  ? cardBorder
-                                  : primaryColor.withValues(alpha: 0.3),
+                              ? Colors.redAccent.withValues(alpha: 0.5)
+                              : isExpanded
+                                  ? primaryColor.withValues(alpha: 0.6)
+                                  : todo.isCompleted
+                                      ? cardBorder
+                                      : primaryColor.withValues(alpha: 0.3),
+                          width: isExpanded ? 1.5 : 1.0,
                         ),
                         borderRadius: BorderRadius.circular(10),
-                      ),
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                      child: Row(
-                        children: [
-                          Checkbox(
-                            value: todo.isCompleted,
-                            activeColor: primaryColor,
-                            onChanged: (val) {
-                              setState(() {
-                                todo.isCompleted = val ?? false;
-                              });
-                              widget.onTodosChanged(widget.todos);
-                              AppSettings.saveSettings(todos: widget.todos);
-                              AlarmService.updateTodos(widget.todos);
-                            },
-                          ),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  todo.title,
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.bold,
-                                    decoration: todo.isCompleted ? TextDecoration.lineThrough : null,
-                                    color: todo.isCompleted
-                                        ? textColor.withValues(alpha: 0.4)
-                                        : textColor,
-                                  ),
+                        boxShadow: isExpanded
+                            ? [
+                                BoxShadow(
+                                  color: primaryColor.withValues(alpha: 0.15),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 3),
                                 ),
-                                if (todo.description.isNotEmpty) ...[
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    todo.description,
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      color: textColor.withValues(alpha: 0.6),
+                              ]
+                            : null,
+                      ),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(10),
+                        onTap: () {
+                          setState(() {
+                            if (_expandedTodoIds.contains(todo.id)) {
+                              _expandedTodoIds.remove(todo.id);
+                            } else {
+                              _expandedTodoIds.add(todo.id);
+                            }
+                          });
+                        },
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // Main Header Row
+                              Row(
+                                children: [
+                                  Checkbox(
+                                    value: todo.isCompleted,
+                                    activeColor: primaryColor,
+                                    onChanged: (val) {
+                                      setState(() {
+                                        todo.isCompleted = val ?? false;
+                                      });
+                                      widget.onTodosChanged(widget.todos);
+                                      AppSettings.saveSettings(todos: widget.todos);
+                                      AlarmService.updateTodos(widget.todos);
+                                    },
+                                  ),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          todo.title,
+                                          style: TextStyle(
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.bold,
+                                            decoration: todo.isCompleted ? TextDecoration.lineThrough : null,
+                                            color: todo.isCompleted
+                                                ? textColor.withValues(alpha: 0.4)
+                                                : textColor,
+                                          ),
+                                        ),
+                                        if (!isExpanded && todo.description.isNotEmpty) ...[
+                                          const SizedBox(height: 2),
+                                          Text(
+                                            todo.description,
+                                            style: TextStyle(
+                                              fontSize: 11,
+                                              color: textColor.withValues(alpha: 0.6),
+                                            ),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ],
+                                        if (!isExpanded) ...[
+                                          const SizedBox(height: 4),
+                                          Row(
+                                            children: [
+                                              Icon(
+                                                Icons.schedule_rounded,
+                                                size: 12,
+                                                color: isOverdue
+                                                    ? Colors.redAccent
+                                                    : todo.isCompleted
+                                                        ? textColor.withValues(alpha: 0.3)
+                                                        : primaryColor,
+                                              ),
+                                              const SizedBox(width: 4),
+                                              Text(
+                                                todo.formattedTargetDate,
+                                                style: TextStyle(
+                                                  fontSize: 11,
+                                                  color: isOverdue
+                                                      ? Colors.redAccent
+                                                      : textColor.withValues(alpha: 0.6),
+                                                ),
+                                              ),
+                                              const SizedBox(width: 8),
+                                              Container(
+                                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                                                decoration: BoxDecoration(
+                                                  color: isOverdue
+                                                      ? Colors.redAccent.withValues(alpha: 0.15)
+                                                      : todo.isCompleted
+                                                          ? textColor.withValues(alpha: 0.1)
+                                                          : primaryColor.withValues(alpha: 0.15),
+                                                  borderRadius: BorderRadius.circular(4),
+                                                ),
+                                                child: Text(
+                                                  todo.timeRemainingSummary,
+                                                  style: TextStyle(
+                                                    fontSize: 10,
+                                                    fontWeight: FontWeight.bold,
+                                                    color: isOverdue
+                                                        ? Colors.redAccent
+                                                        : todo.isCompleted
+                                                            ? textColor.withValues(alpha: 0.4)
+                                                            : primaryColor,
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ],
+                                      ],
                                     ),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  IconButton(
+                                    icon: Icon(
+                                      isExpanded
+                                          ? Icons.keyboard_arrow_up_rounded
+                                          : Icons.keyboard_arrow_down_rounded,
+                                      size: 20,
+                                    ),
+                                    color: primaryColor,
+                                    onPressed: () {
+                                      setState(() {
+                                        if (_expandedTodoIds.contains(todo.id)) {
+                                          _expandedTodoIds.remove(todo.id);
+                                        } else {
+                                          _expandedTodoIds.add(todo.id);
+                                        }
+                                      });
+                                    },
+                                    tooltip: isExpanded ? 'Collapse Details' : 'Expand Details',
                                   ),
                                 ],
+                              ),
+
+                              // Expanded Details View
+                              if (isExpanded) ...[
+                                const SizedBox(height: 8),
+                                Divider(color: cardBorder, height: 1),
+                                const SizedBox(height: 10),
+
+                                // Full Description Box
+                                Text(
+                                  'DETAILS & NOTES',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                    letterSpacing: 0.5,
+                                    color: textColor.withValues(alpha: 0.5),
+                                  ),
+                                ),
                                 const SizedBox(height: 4),
+                                Container(
+                                  width: double.infinity,
+                                  padding: const EdgeInsets.all(10),
+                                  decoration: BoxDecoration(
+                                    color: isDark
+                                        ? Colors.black.withValues(alpha: 0.25)
+                                        : Colors.white.withValues(alpha: 0.6),
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(color: cardBorder),
+                                  ),
+                                  child: SelectableText(
+                                    todo.description.isNotEmpty
+                                        ? todo.description
+                                        : 'No additional details provided.',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: todo.description.isNotEmpty
+                                          ? textColor
+                                          : textColor.withValues(alpha: 0.4),
+                                      height: 1.4,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 10),
+
+                                // Event Date & Countdown Cards
                                 Row(
                                   children: [
-                                    Icon(
-                                      Icons.schedule_rounded,
-                                      size: 12,
-                                      color: isOverdue
-                                          ? Colors.redAccent
-                                          : todo.isCompleted
-                                              ? textColor.withValues(alpha: 0.3)
-                                              : primaryColor,
-                                    ),
-                                    const SizedBox(width: 4),
-                                    Text(
-                                      todo.formattedTargetDate,
-                                      style: TextStyle(
-                                        fontSize: 11,
-                                        color: isOverdue
-                                            ? Colors.redAccent
-                                            : textColor.withValues(alpha: 0.6),
+                                    Expanded(
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                                        decoration: BoxDecoration(
+                                          color: isDark
+                                              ? Colors.white.withValues(alpha: 0.04)
+                                              : Colors.black.withValues(alpha: 0.03),
+                                          borderRadius: BorderRadius.circular(6),
+                                        ),
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              'SCHEDULED DATE',
+                                              style: TextStyle(
+                                                  fontSize: 9,
+                                                  fontWeight: FontWeight.bold,
+                                                  color: textColor.withValues(alpha: 0.5)),
+                                            ),
+                                            const SizedBox(height: 2),
+                                            Row(
+                                              children: [
+                                                Icon(Icons.event_note_rounded, size: 13, color: primaryColor),
+                                                const SizedBox(width: 4),
+                                                Expanded(
+                                                  child: Text(
+                                                    todo.formattedTargetDate,
+                                                    style: TextStyle(
+                                                        fontSize: 11,
+                                                        fontWeight: FontWeight.bold,
+                                                        color: textColor),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ],
+                                        ),
                                       ),
                                     ),
                                     const SizedBox(width: 8),
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                                      decoration: BoxDecoration(
-                                        color: isOverdue
-                                            ? Colors.redAccent.withValues(alpha: 0.15)
-                                            : todo.isCompleted
-                                                ? textColor.withValues(alpha: 0.1)
-                                                : primaryColor.withValues(alpha: 0.15),
-                                        borderRadius: BorderRadius.circular(4),
-                                      ),
-                                      child: Text(
-                                        todo.timeRemainingSummary,
-                                        style: TextStyle(
-                                          fontSize: 10,
-                                          fontWeight: FontWeight.bold,
+                                    Expanded(
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                                        decoration: BoxDecoration(
                                           color: isOverdue
-                                              ? Colors.redAccent
-                                              : todo.isCompleted
-                                                  ? textColor.withValues(alpha: 0.4)
-                                                  : primaryColor,
+                                              ? Colors.redAccent.withValues(alpha: 0.15)
+                                              : primaryColor.withValues(alpha: 0.15),
+                                          borderRadius: BorderRadius.circular(6),
+                                        ),
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              'COUNTDOWN',
+                                              style: TextStyle(
+                                                  fontSize: 9,
+                                                  fontWeight: FontWeight.bold,
+                                                  color: textColor.withValues(alpha: 0.5)),
+                                            ),
+                                            const SizedBox(height: 2),
+                                            Row(
+                                              children: [
+                                                Icon(
+                                                  isOverdue
+                                                      ? Icons.warning_amber_rounded
+                                                      : Icons.hourglass_top_rounded,
+                                                  size: 13,
+                                                  color: isOverdue ? Colors.redAccent : primaryColor,
+                                                ),
+                                                const SizedBox(width: 4),
+                                                Expanded(
+                                                  child: Text(
+                                                    todo.timeRemainingSummary,
+                                                    style: TextStyle(
+                                                      fontSize: 11,
+                                                      fontWeight: FontWeight.bold,
+                                                      color: isOverdue ? Colors.redAccent : primaryColor,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ],
                                         ),
                                       ),
                                     ),
                                   ],
                                 ),
+                                const SizedBox(height: 10),
+
+                                // Action Buttons
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.end,
+                                  children: [
+                                    OutlinedButton.icon(
+                                      style: OutlinedButton.styleFrom(
+                                        foregroundColor: textColor,
+                                        side: BorderSide(color: cardBorder),
+                                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                        visualDensity: VisualDensity.compact,
+                                      ),
+                                      icon: const Icon(Icons.edit_outlined, size: 14),
+                                      label: const Text('Edit', style: TextStyle(fontSize: 11)),
+                                      onPressed: () => _showAddEditTodoDialog(todo),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    OutlinedButton.icon(
+                                      style: OutlinedButton.styleFrom(
+                                        foregroundColor: Colors.redAccent,
+                                        side: BorderSide(color: Colors.redAccent.withValues(alpha: 0.4)),
+                                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                        visualDensity: VisualDensity.compact,
+                                      ),
+                                      icon: const Icon(Icons.delete_outline, size: 14),
+                                      label: const Text('Delete', style: TextStyle(fontSize: 11)),
+                                      onPressed: () {
+                                        final updated = List<TodoItem>.from(widget.todos)..remove(todo);
+                                        widget.onTodosChanged(updated);
+                                        AppSettings.saveSettings(todos: updated);
+                                        AlarmService.updateTodos(updated);
+                                      },
+                                    ),
+                                  ],
+                                ),
                               ],
-                            ),
+                            ],
                           ),
-                          IconButton(
-                            icon: const Icon(Icons.edit_outlined, size: 16),
-                            color: textColor.withValues(alpha: 0.6),
-                            onPressed: () => _showAddEditTodoDialog(todo),
-                            tooltip: 'Edit Event',
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.delete_outline, size: 16),
-                            color: Colors.redAccent.withValues(alpha: 0.7),
-                            onPressed: () {
-                              final updated = List<TodoItem>.from(widget.todos)..remove(todo);
-                              widget.onTodosChanged(updated);
-                              AppSettings.saveSettings(todos: updated);
-                              AlarmService.updateTodos(updated);
-                            },
-                            tooltip: 'Delete Event',
-                          ),
-                        ],
+                        ),
                       ),
                     );
                   },
