@@ -11,6 +11,10 @@ import 'package:window_manager/window_manager.dart';
 
 final ValueNotifier<ThemeMode> themeNotifier = ValueNotifier(ThemeMode.system);
 final ValueNotifier<Color> accentColorNotifier = ValueNotifier(const Color(0xFFB91C1C));
+final ValueNotifier<String> dateFormatNotifier = ValueNotifier('dd/mm/yyyy');
+/// Persisted default filter shown when the user opens the To-Do tab.
+/// Values: 'all' | 'upcoming' | 'missed' | 'completed'
+final ValueNotifier<String> todoDefaultViewNotifier = ValueNotifier('upcoming');
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -64,6 +68,17 @@ void main() async {
   final accentVal = settings['accentColor'] as int?;
   if (accentVal != null) {
     accentColorNotifier.value = Color(accentVal);
+  }
+
+  final dateFormatVal = settings['dateFormat'] as String?;
+  if (dateFormatVal != null && dateFormatVal.isNotEmpty) {
+    dateFormatNotifier.value = dateFormatVal;
+  }
+
+  final todoDefaultViewVal = settings['todoDefaultView'] as String?;
+  const _validTodoViews = {'all', 'upcoming', 'missed', 'completed'};
+  if (todoDefaultViewVal != null && _validTodoViews.contains(todoDefaultViewVal)) {
+    todoDefaultViewNotifier.value = todoDefaultViewVal;
   }
 
   const windowOptions = WindowOptions(

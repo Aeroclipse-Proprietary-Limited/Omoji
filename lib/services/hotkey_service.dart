@@ -52,7 +52,7 @@ if command -v gsettings >/dev/null 2>&1; then
         if [ "\$CURRENT_LIST" == "@as []" ] || [ -z "\$CURRENT_LIST" ]; then
             gsettings set org.gnome.settings-daemon.plugins.media-keys custom-keybindings "['\$PRIMARY_PATH', '\$SECONDARY_PATH']" 2>/dev/null || true
         else
-            NEW_LIST=\$(echo "\$CURRENT_LIST" | sed "s|]|\, '\$PRIMARY_PATH', '\$SECONDARY_PATH']|")
+            NEW_LIST=\$(echo "\$CURRENT_LIST" | sed "s|]|, '\$PRIMARY_PATH', '\$SECONDARY_PATH']|")
             gsettings set org.gnome.settings-daemon.plugins.media-keys custom-keybindings "\$NEW_LIST" 2>/dev/null || true
         fi
     fi

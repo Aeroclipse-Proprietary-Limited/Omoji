@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:omoji/main.dart';
 import 'package:omoji/models/alarm_item.dart';
 import 'package:omoji/models/todo_item.dart';
 import 'package:omoji/services/alarm_service.dart';
@@ -26,8 +27,14 @@ class ClockView extends StatefulWidget {
 
 class _ClockViewState extends State<ClockView> {
   String _subTab = 'alarms'; // 'alarms', 'stopwatch', 'timer', 'todo'
-  String _todoFilter = 'all'; // 'all', 'upcoming', 'completed'
+  late String _todoFilter; // initialized from todoDefaultViewNotifier
   final Set<String> _expandedTodoIds = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _todoFilter = todoDefaultViewNotifier.value;
+  }
 
   String _formatTimerDisplay(int totalSeconds) {
     final hours = totalSeconds ~/ 3600;
@@ -243,6 +250,7 @@ class _ClockViewState extends State<ClockView> {
     final titleController = TextEditingController(text: existing?.title ?? '');
     final descController = TextEditingController(text: existing?.description ?? '');
     DateTime selectedDateTime = existing?.targetDateTime ?? DateTime.now().add(const Duration(days: 7));
+    String selectedRecurrence = existing?.recurrence ?? 'none';
 
     await showDialog(
       context: context,
@@ -396,6 +404,34 @@ class _ClockViewState extends State<ClockView> {
                         ),
                       ],
                     ),
+                    const SizedBox(height: 14),
+                    Text(
+                      'Recurrence / Repeat:',
+                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: textColor.withValues(alpha: 0.7)),
+                    ),
+                    const SizedBox(height: 6),
+                    DropdownButtonFormField<String>(
+                      value: selectedRecurrence,
+                      dropdownColor: isDark ? const Color(0xFF2C2C2C) : Colors.white,
+                      style: TextStyle(color: textColor, fontSize: 13),
+                      decoration: const InputDecoration(
+                        border: OutlineInputBorder(),
+                        isDense: true,
+                        contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                      ),
+                      items: const [
+                        DropdownMenuItem(value: 'none', child: Text('Does not repeat')),
+                        DropdownMenuItem(value: 'daily', child: Text('Every day (Daily)')),
+                        DropdownMenuItem(value: 'weekly', child: Text('Every week (Weekly)')),
+                        DropdownMenuItem(value: 'monthly', child: Text('Every month (Monthly)')),
+                        DropdownMenuItem(value: 'yearly', child: Text('Every year (Yearly)')),
+                      ],
+                      onChanged: (val) {
+                        if (val != null) {
+                          setDialogState(() => selectedRecurrence = val);
+                        }
+                      },
+                    ),
                   ],
                 ),
               ),
@@ -415,13 +451,15 @@ class _ClockViewState extends State<ClockView> {
                       existing.title = title;
                       existing.description = descController.text.trim();
                       existing.targetDateTime = selectedDateTime;
-                      existing.hasNotified = false; // reset notification state if date updated
+                      existing.recurrence = selectedRecurrence;
+                      existing.hasNotified = false;
                     } else {
                       final newTodo = TodoItem(
                         id: DateTime.now().millisecondsSinceEpoch.toString(),
                         title: title,
                         description: descController.text.trim(),
                         targetDateTime: selectedDateTime,
+                        recurrence: selectedRecurrence,
                       );
                       updated.add(newTodo);
                     }
@@ -471,7 +509,11 @@ class _ClockViewState extends State<ClockView> {
     return Focus(
       canRequestFocus: false,
       child: InkWell(
-        onTap: () => setState(() => _subTab = id),
+        onTap: () => setState(() {
+            _subTab = id;
+            // Reset to the user's preferred default view each time they open To-Do
+            if (id == 'todo') _todoFilter = todoDefaultViewNotifier.value;
+          }),
         borderRadius: BorderRadius.circular(8),
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
@@ -1052,8 +1094,18 @@ class _ClockViewState extends State<ClockView> {
   Widget _buildTodoView(Color cardBg, Color cardBorder, Color textColor) {
     final primaryColor = Theme.of(context).colorScheme.primary;
 
+    final now = DateTime.now();
+    final upcomingCount = widget.todos.where((t) => !t.isCompleted && (t.targetDateTime.isAfter(now) || t.targetDateTime.isAtSameMomentAs(now))).length;
+    final missedCount = widget.todos.where((t) => !t.isCompleted && t.targetDateTime.isBefore(now)).length;
+    final completedCount = widget.todos.where((t) => t.isCompleted).length;
+
     List<TodoItem> filteredTodos = widget.todos.where((item) {
-      if (_todoFilter == 'upcoming') return !item.isCompleted;
+      if (_todoFilter == 'upcoming') {
+        return !item.isCompleted && (item.targetDateTime.isAfter(now) || item.targetDateTime.isAtSameMomentAs(now));
+      }
+      if (_todoFilter == 'missed') {
+        return !item.isCompleted && item.targetDateTime.isBefore(now);
+      }
       if (_todoFilter == 'completed') return item.isCompleted;
       return true;
     }).toList();
@@ -1067,14 +1119,21 @@ class _ClockViewState extends State<ClockView> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Row(
-              children: [
-                _buildTodoFilterChip('all', 'All (${widget.todos.length})'),
-                const SizedBox(width: 4),
-                _buildTodoFilterChip('upcoming', 'Upcoming (${widget.todos.where((t) => !t.isCompleted).length})'),
-                const SizedBox(width: 4),
-                _buildTodoFilterChip('completed', 'Done (${widget.todos.where((t) => t.isCompleted).length})'),
-              ],
+            Expanded(
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    _buildTodoFilterChip('all', 'All (${widget.todos.length})'),
+                    const SizedBox(width: 4),
+                    _buildTodoFilterChip('upcoming', 'Upcoming ($upcomingCount)'),
+                    const SizedBox(width: 4),
+                    _buildTodoFilterChip('missed', 'Missed ($missedCount)'),
+                    const SizedBox(width: 4),
+                    _buildTodoFilterChip('completed', 'Done ($completedCount)'),
+                  ],
+                ),
+              ),
             ),
             IconButton(
               icon: Icon(Icons.add_circle_outline, color: primaryColor, size: 20),
@@ -1105,9 +1164,12 @@ class _ClockViewState extends State<ClockView> {
                     ],
                   ),
                 )
-              : ListView.builder(
-                  itemCount: filteredTodos.length,
-                  itemBuilder: (context, index) {
+              : ValueListenableBuilder<String>(
+                  valueListenable: dateFormatNotifier,
+                  builder: (context, dateFormat, _) {
+                    return ListView.builder(
+                      itemCount: filteredTodos.length,
+                      itemBuilder: (context, index) {
                     final todo = filteredTodos[index];
                     final isOverdue = !todo.isCompleted && DateTime.now().isAfter(todo.targetDateTime);
                     final isExpanded = _expandedTodoIds.contains(todo.id);
@@ -1448,11 +1510,13 @@ class _ClockViewState extends State<ClockView> {
                               ],
                             ],
                           ),
+                          ),
                         ),
-                      ),
-                    );
-                  },
-                ),
+                      );
+                    },
+                  );
+                },
+              ),
         ),
       ],
     );

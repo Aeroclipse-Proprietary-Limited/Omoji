@@ -1,5 +1,7 @@
 // lib/models/todo_item.dart
 
+import 'package:omoji/main.dart';
+
 class TodoItem {
   final String id;
   String title;
@@ -8,6 +10,7 @@ class TodoItem {
   bool isCompleted;
   final DateTime createdAt;
   bool hasNotified;
+  String recurrence; // 'none', 'daily', 'weekly', 'monthly', 'yearly'
 
   TodoItem({
     required this.id,
@@ -17,6 +20,7 @@ class TodoItem {
     this.isCompleted = false,
     DateTime? createdAt,
     this.hasNotified = false,
+    this.recurrence = 'none',
   }) : createdAt = createdAt ?? DateTime.now();
 
   Map<String, dynamic> toJson() => {
@@ -27,6 +31,7 @@ class TodoItem {
         'isCompleted': isCompleted,
         'createdAt': createdAt.toIso8601String(),
         'hasNotified': hasNotified,
+        'recurrence': recurrence,
       };
 
   factory TodoItem.fromJson(Map<String, dynamic> json) {
@@ -42,7 +47,54 @@ class TodoItem {
           ? DateTime.parse(json['createdAt'] as String)
           : DateTime.now(),
       hasNotified: (json['hasNotified'] as bool?) ?? false,
+      recurrence: (json['recurrence'] as String?) ?? 'none',
     );
+  }
+
+  bool advanceToNextRecurrence() {
+    if (recurrence == 'none') return false;
+
+    DateTime next = targetDateTime;
+    final now = DateTime.now();
+
+    while (next.isBefore(now) || next.isAtSameMomentAs(now)) {
+      switch (recurrence) {
+        case 'daily':
+          next = next.add(const Duration(days: 1));
+          break;
+        case 'weekly':
+          next = next.add(const Duration(days: 7));
+          break;
+        case 'monthly':
+          next = DateTime(next.year, next.month + 1, next.day, next.hour, next.minute);
+          break;
+        case 'yearly':
+          next = DateTime(next.year + 1, next.month, next.day, next.hour, next.minute);
+          break;
+        default:
+          return false;
+      }
+    }
+
+    targetDateTime = next;
+    isCompleted = false;
+    hasNotified = false;
+    return true;
+  }
+
+  String get recurrenceSummary {
+    switch (recurrence) {
+      case 'daily':
+        return 'Daily';
+      case 'weekly':
+        return 'Weekly';
+      case 'monthly':
+        return 'Monthly';
+      case 'yearly':
+        return 'Yearly';
+      default:
+        return '';
+    }
   }
 
   String get timeRemainingSummary {
@@ -80,12 +132,20 @@ class TodoItem {
     }
   }
 
-  String get formattedTargetDate {
+  String formatTargetDate([String? formatPattern]) {
     final year = targetDateTime.year;
     final month = targetDateTime.month.toString().padLeft(2, '0');
     final day = targetDateTime.day.toString().padLeft(2, '0');
     final hour = targetDateTime.hour.toString().padLeft(2, '0');
     final minute = targetDateTime.minute.toString().padLeft(2, '0');
-    return '$year-$month-$day $hour:$minute';
+
+    final fmt = formatPattern ?? dateFormatNotifier.value;
+    if (fmt.startsWith('yyyy')) {
+      return '$year-$month-$day $hour:$minute';
+    } else {
+      return '$day-$month-$year $hour:$minute';
+    }
   }
+
+  String get formattedTargetDate => formatTargetDate();
 }

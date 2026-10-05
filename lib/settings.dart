@@ -16,6 +16,7 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   bool _showCardForm = false;
+  bool _showCryptoAddress = false;
   String? _customAlarmSoundPath;
   bool _isPlayingTest = false;
   bool _autoPaste = true;
@@ -79,6 +80,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           '--title=Select Custom Alarm Sound MP3',
           '--file-filter=Audio files (*.mp3 *.wav *.ogg) | *.mp3 *.wav *.ogg *.MP3 *.WAV *.OGG',
         ]);
+        // This is life!
         if (result.exitCode == 0) {
           final path = (result.stdout as String).trim();
           if (path.isNotEmpty) {
@@ -235,7 +237,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             border: Border.all(color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.4)),
                           ),
                           child: Text(
-                            'v1.2.0',
+                            'v1.2.1',
                             style: TextStyle(
                               color: Theme.of(context).colorScheme.primary,
                               fontSize: 12,
@@ -388,6 +390,143 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                 ),
                               );
                             }),
+                          ),
+                        );
+                      },
+                    ),
+
+                    const SizedBox(height: 24),
+
+                    // Section: Date Display Format
+                    Text(
+                      'Date Display Format',
+                      style: TextStyle(
+                        color: subtitleColor,
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    ValueListenableBuilder<String>(
+                      valueListenable: dateFormatNotifier,
+                      builder: (context, currentFormat, _) {
+                        return Container(
+                          decoration: BoxDecoration(
+                            color: cardBg,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: cardBorderColor),
+                          ),
+                          padding: const EdgeInsets.all(6),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: _buildThemeOption(
+                                  context: context,
+                                  label: 'dd/mm/yyyy',
+                                  icon: Icons.calendar_today_rounded,
+                                  isActive: currentFormat == 'dd/mm/yyyy',
+                                  onTap: () async {
+                                    dateFormatNotifier.value = 'dd/mm/yyyy';
+                                    await AppSettings.saveSettings(dateFormat: 'dd/mm/yyyy');
+                                  },
+                                ),
+                              ),
+                              Expanded(
+                                child: _buildThemeOption(
+                                  context: context,
+                                  label: 'yyyy/mm/dd',
+                                  icon: Icons.event_rounded,
+                                  isActive: currentFormat == 'yyyy/mm/dd',
+                                  onTap: () async {
+                                    dateFormatNotifier.value = 'yyyy/mm/dd';
+                                    await AppSettings.saveSettings(dateFormat: 'yyyy/mm/dd');
+                                  },
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+
+                    const SizedBox(height: 24),
+
+                    // Section: To-Do Default View
+                    Text(
+                      'To-Do Default View',
+                      style: TextStyle(
+                        color: subtitleColor,
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    ValueListenableBuilder<String>(
+                      valueListenable: todoDefaultViewNotifier,
+                      builder: (context, currentView, _) {
+                        final views = [
+                          ('all',       'All',      Icons.list_rounded),
+                          ('upcoming',  'Upcoming', Icons.upcoming_rounded),
+                          ('missed',    'Missed',   Icons.alarm_off_rounded),
+                          ('completed', 'Done',     Icons.check_circle_outline_rounded),
+                        ];
+                        return Container(
+                          decoration: BoxDecoration(
+                            color: cardBg,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: cardBorderColor),
+                          ),
+                          padding: const EdgeInsets.all(6),
+                          child: Row(
+                            children: views.map((v) {
+                              final isActive = currentView == v.$1;
+                              return Expanded(
+                                child: GestureDetector(
+                                  onTap: () async {
+                                    todoDefaultViewNotifier.value = v.$1;
+                                    await AppSettings.saveSettings(todoDefaultView: v.$1);
+                                  },
+                                  child: AnimatedContainer(
+                                    duration: const Duration(milliseconds: 200),
+                                    margin: const EdgeInsets.symmetric(horizontal: 3),
+                                    padding: const EdgeInsets.symmetric(vertical: 8),
+                                    decoration: BoxDecoration(
+                                      color: isActive
+                                          ? Theme.of(context).colorScheme.primary
+                                          : Colors.transparent,
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(
+                                          v.$3,
+                                          size: 16,
+                                          color: isActive
+                                              ? Colors.white
+                                              : subtitleColor,
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          v.$2,
+                                          style: TextStyle(
+                                            fontSize: 11,
+                                            fontWeight: isActive
+                                                ? FontWeight.bold
+                                                : FontWeight.normal,
+                                            color: isActive
+                                                ? Colors.white
+                                                : subtitleColor,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              );
+                            }).toList(),
                           ),
                         );
                       },
@@ -1002,11 +1141,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                   label: 'card',
                                   icon: Icons.credit_card_rounded,
                                   color: Theme.of(context).colorScheme.primary,
-                                  isActive: _showCardForm,
+                                  isActive: false,
                                   onTap: () {
                                     setState(() {
-                                      _showCardForm = !_showCardForm;
+                                      _showCardForm = false;
                                     });
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text('Credit card payments are disabled for security reasons. Please use ETH instead!'),
+                                        duration: Duration(seconds: 3),
+                                      ),
+                                    );
                                   },
                                 ),
                               ),
@@ -1014,26 +1159,98 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               Expanded(
                                 child: _buildDonationButton(
                                   context: context,
-                                  label: 'eth/ doge',
+                                  label: 'eth',
                                   icon: Icons.currency_bitcoin_rounded,
                                   color: Colors.amber[700]!,
-                                  isActive: false,
+                                  isActive: _showCryptoAddress,
                                   onTap: () {
                                     setState(() {
-                                      _showCardForm = false; // Hide card form if they click crypto
+                                      _showCryptoAddress = !_showCryptoAddress;
+                                      _showCardForm = false;
                                     });
-                                    debugPrint('Donate with Crypto clicked');
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                        content: Text('Crypto donation coming soon!'),
-                                        duration: Duration(seconds: 2),
-                                      ),
-                                    );
                                   },
                                 ),
                               ),
                             ],
                           ),
+                          if (_showCryptoAddress) ...[
+                            const SizedBox(height: 16),
+                            Divider(color: isDark ? Colors.white10 : Colors.black12),
+                            const SizedBox(height: 12),
+                            Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: isDark ? Colors.black.withValues(alpha: 0.3) : Colors.white.withValues(alpha: 0.6),
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(color: cardBorderColor),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Icon(Icons.account_balance_wallet_rounded, color: Colors.amber[700], size: 16),
+                                      const SizedBox(width: 6),
+                                      Text(
+                                        'ETH Wallet Address',
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.bold,
+                                          color: textColor.withValues(alpha: 0.8),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 8),
+                                  SelectableText(
+                                    '0xfe9dd55429fc5f35f9f363aeaeba256f955b807c',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w600,
+                                      fontFamily: 'monospace',
+                                      color: Theme.of(context).colorScheme.primary,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Align(
+                                    alignment: Alignment.centerRight,
+                                    child: InkWell(
+                                      borderRadius: BorderRadius.circular(6),
+                                      onTap: () {
+                                        Clipboard.setData(
+                                          const ClipboardData(text: '0xfe9dd55429fc5f35f9f363aeaeba256f955b807c'),
+                                        );
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          const SnackBar(
+                                            content: Text('Wallet address copied to clipboard!'),
+                                            duration: Duration(seconds: 2),
+                                          ),
+                                        );
+                                      },
+                                      child: Padding(
+                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Icon(Icons.copy_rounded, size: 13, color: Theme.of(context).colorScheme.primary),
+                                            const SizedBox(width: 4),
+                                            Text(
+                                              'Copy Address',
+                                              style: TextStyle(
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.bold,
+                                                color: Theme.of(context).colorScheme.primary,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
                           if (_showCardForm) ...[
                             const SizedBox(height: 20),
                             Divider(color: isDark ? Colors.white10 : Colors.black12),

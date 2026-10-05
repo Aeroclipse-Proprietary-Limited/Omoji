@@ -2,7 +2,7 @@
 
 A lightweight, glassmorphic desktop emoji picker and clipboard history manager built natively for **Linux** & **macOS** by **Aeroclipse Proprietary Limited**.
 
-Omoji is designed to pop up instantly via a keyboard shortcut (`Super + .` / `Cmd + .`), let you search and copy emojis or manage your clipboard history, and auto-inject your selection directly into your active window.
+Omoji is designed to pop up instantly via a keyboard shortcut (`Super + X` / `Cmd + .`), let you search and copy emojis or manage your clipboard history, and auto-inject your selection directly into your active window.
 
 ---
 

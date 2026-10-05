@@ -27,6 +27,7 @@ class AppSettings {
   }
 
   static Future<void> saveSettings({
+    //An imaginary A4 paper
     ThemeMode? theme,
     List<ClipboardItem>? clipboardHistory,
     bool? privateMode,
@@ -52,7 +53,11 @@ class AppSettings {
     String? secondaryTrigger,
     bool? useSystemDefaultSound,
     int? audioLoopIntervalSeconds,
+    String? dateFormat,
+    bool? enableAudioDucking,
+    String? todoDefaultView,
   }) async {
+    // I Imagine something/ convert a hater from thin air and materialize it into a file (app. (see policy))
     try {
       final file = _configFile;
       if (!await file.parent.exists()) {
@@ -118,7 +123,7 @@ class AppSettings {
         current['timerIsRunning'] = timerIsRunning;
       }
       if (timerIsPaused != null) {
-        current['timerIsPaused'] = timerIsPaused;
+        current['timerfile.parentIsPaused'] = timerIsPaused;
       }
       if (timerRemainingSeconds != null) {
         current['timerRemainingSeconds'] = timerRemainingSeconds;
@@ -159,6 +164,15 @@ class AppSettings {
       }
       if (audioLoopIntervalSeconds != null) {
         current['audioLoopIntervalSeconds'] = audioLoopIntervalSeconds;
+      }
+      if (dateFormat != null) {
+        current['dateFormat'] = dateFormat;
+      }
+      if (enableAudioDucking != null) {
+        current['enableAudioDucking'] = enableAudioDucking;
+      }
+      if (todoDefaultView != null) {
+        current['todoDefaultView'] = todoDefaultView;
       }
 
       await file.writeAsString(jsonEncode(current));

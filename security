@@ -6,8 +6,8 @@ The following versions of Omoji receive active security updates:
 
 | Version | Supported          |
 | ------- | ------------------ |
-| 1.0.x   | :white_check_mark: |
-| < 1.0.0 | :x:                |
+| 1.0.x   | :✔️:               |
+| < 1.0.0 | :✔️:               |
 
 ## Reporting a Vulnerability
 
@@ -19,14 +19,14 @@ Please send security reports directly to the maintainer:
 * **Email:** godlyttn@outlook.com
 
 To help us investigate, please include:
-1. A detailed description of the vulnerability.
-2. Steps to reproduce the issue (or a proof-of-concept snippet).
-3. The potential impact if exploited.
+1. A detailed description of the vulnerability in these formats only (written note or digitized➡️txt, pdf, csv).
+2. Steps to reproduce the issue (or a proof-of-concept snippet (ie: screenshots)).
+3. The potential impact if exploited (an avidafit (certified)).
 
 ### Our Response Process
 
 * **Acknowledgment:** You will receive an acknowledgment of your report within 48 hours.
 * **Triage & Patch:** We will investigate and aim to provide a fix within 14 business days.
-* **Disclosure:** Once a patch is available, a new release will be published along with a security advisory detailing the fix.
+* **Disclosure:** Once a patch is available, a new release will be published along with a security advisory detailing the fix & compensation of BWP4000.00 for your appreciated notice on the matter💜.
 
-Thank you for keeping Omoji secure!
+Thank you for keeping Omoji secure (It's a human driven project who pioneered AI from it's infancy and still molds it today)!!

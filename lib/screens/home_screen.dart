@@ -1,8 +1,8 @@
 // lib/screens/home_screen.dart
 
-import 'dart:async';
-import 'dart:io';
 import 'dart:ui';
+import 'dart:io';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:omoji/data/emoji_map.dart';
@@ -433,21 +433,21 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
         final res = await Process.run('python3', [
           '-c',
           '''import evdev, time
-from evdev import UInput, ecodes as e
-ui = UInput()
-time.sleep(0.05)
-for k in [e.KEY_LEFTMETA, e.KEY_RIGHTMETA, e.KEY_LEFTALT, e.KEY_RIGHTALT, e.KEY_LEFTSHIFT, e.KEY_RIGHTSHIFT, e.KEY_LEFTCTRL, e.KEY_RIGHTCTRL]:
-    ui.write(e.EV_KEY, k, 0)
-ui.syn()
-time.sleep(0.02)
-ui.write(e.EV_KEY, e.KEY_LEFTCTRL, 1)
-ui.write(e.EV_KEY, e.KEY_V, 1)
-ui.syn()
-time.sleep(0.03)
-ui.write(e.EV_KEY, e.KEY_V, 0)
-ui.write(e.EV_KEY, e.KEY_LEFTCTRL, 0)
-ui.syn()
-ui.close()'''
+            from evdev import UInput, ecodes as e
+            ui = UInput()
+            time.sleep(0.05)
+            for k in [e.KEY_LEFTMETA, e.KEY_RIGHTMETA, e.KEY_LEFTALT, e.KEY_RIGHTALT, e.KEY_LEFTSHIFT, e.KEY_RIGHTSHIFT, e.KEY_LEFTCTRL, e.KEY_RIGHTCTRL]:
+                ui.write(e.EV_KEY, k, 0)
+            ui.syn()
+            time.sleep(0.02)
+            ui.write(e.EV_KEY, e.KEY_LEFTCTRL, 1)
+            ui.write(e.EV_KEY, e.KEY_V, 1)
+            ui.syn()
+            time.sleep(0.03)
+            ui.write(e.EV_KEY, e.KEY_V, 0)
+            ui.write(e.EV_KEY, e.KEY_LEFTCTRL, 0)
+            ui.syn()
+            ui.close()'''
         ]);
         if (res.exitCode == 0) return;
       } catch (e) {

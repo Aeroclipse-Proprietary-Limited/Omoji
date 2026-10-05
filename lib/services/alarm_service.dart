@@ -6,6 +6,8 @@ import 'package:flutter/material.dart';
 import 'package:omoji/models/alarm_item.dart';
 import 'package:omoji/models/todo_item.dart';
 import 'package:omoji/services/app_settings.dart';
+import 'package:omoji/services/audio_ducking_service.dart';
+import 'package:omoji/services/logger_service.dart';
 import 'package:omoji/services/timer_service.dart';
 import 'package:window_manager/window_manager.dart';
 
@@ -18,6 +20,7 @@ class AlarmService {
   static String? customAlarmSoundPath;
   static bool useSystemDefaultSound = true;
   static int audioLoopIntervalSeconds = 10;
+  static bool enableAudioDucking = true;
   static Process? _currentAudioProcess;
 
   static final ValueNotifier<AlarmItem?> activeRingingAlarm = ValueNotifier(null);
@@ -30,12 +33,15 @@ class AlarmService {
     String? customSoundPath,
     bool? useSystemDefault,
     int? loopIntervalSeconds,
+    bool? enableDucking,
   }) async {
     _alarms = alarms;
     if (todos != null) _todos = todos;
     customAlarmSoundPath = customSoundPath;
     if (useSystemDefault != null) useSystemDefaultSound = useSystemDefault;
     if (loopIntervalSeconds != null) audioLoopIntervalSeconds = loopIntervalSeconds.clamp(10, 93);
+    if (enableDucking != null) enableAudioDucking = enableDucking;
+    LoggerService.info('AlarmService initialized with ${_alarms.length} alarm(s) and ${_todos.length} todo(s).');
     _startMonitoring();
   }
 
@@ -55,10 +61,12 @@ class AlarmService {
     bool? useSystemDefault,
     String? customPath,
     int? loopIntervalSeconds,
+    bool? enableDucking,
   }) {
     if (useSystemDefault != null) useSystemDefaultSound = useSystemDefault;
     if (customPath != null) customAlarmSoundPath = customPath;
     if (loopIntervalSeconds != null) audioLoopIntervalSeconds = loopIntervalSeconds.clamp(10, 93);
+    if (enableDucking != null) enableAudioDucking = enableDucking;
   }
 
   static void _startMonitoring() {
@@ -90,6 +98,7 @@ class AlarmService {
 
         if (shouldFire) {
           alarm.lastFiredDate = currentDateStr;
+          LoggerService.info('Alarm triggered: "${alarm.label}" at $currentHHmm');
           triggerAlarm(alarm);
           break; // Trigger one alarm at a time
         }
@@ -100,7 +109,13 @@ class AlarmService {
     for (var todo in _todos) {
       if (todo.isCompleted || todo.hasNotified) continue;
       if (now.isAfter(todo.targetDateTime) || now.isAtSameMomentAs(todo.targetDateTime)) {
-        todo.hasNotified = true;
+        LoggerService.info('To-Do reminder triggered: "${todo.title}" (Recurrence: ${todo.recurrence})');
+        if (todo.recurrence != 'none') {
+          todo.advanceToNextRecurrence();
+          LoggerService.info('Advanced recurring To-Do "${todo.title}" to ${todo.formattedTargetDate}');
+        } else {
+          todo.hasNotified = true;
+        }
         AppSettings.saveSettings(todos: _todos);
         triggerTodoNotification(todo);
         break;
@@ -158,6 +173,7 @@ class AlarmService {
     _audioLoopTimer = null;
     _alarmRingingTimeoutTimer = null;
     killAudioProcess();
+    AudioDuckingService.restoreAudio();
 
     try {
       windowManager.setAlwaysOnTop(false);
@@ -170,9 +186,11 @@ class AlarmService {
       }
       silencedAlarmNotice.value =
           "Alarm '${alarm.label}' (${alarm.time}) was automatically silenced after ${alarm.autoSilenceMinutes} min(s).";
+      LoggerService.info('Alarm "${alarm.label}" automatically silenced.');
     } else {
       silencedAlarmNotice.value =
           "Timer '${label ?? 'Finished'}' was automatically silenced after 5 min(s).";
+      LoggerService.info('Timer "${label ?? 'Finished'}" automatically silenced.');
     }
 
     activeRingingAlarm.value = null;
@@ -181,6 +199,7 @@ class AlarmService {
 
   static void _startAudioLoop() {
     _audioLoopTimer?.cancel();
+    AudioDuckingService.duckAudio(enabled: enableAudioDucking);
     playAlertSound();
     final intervalSecs = audioLoopIntervalSeconds.clamp(10, 93);
     _audioLoopTimer = Timer.periodic(Duration(seconds: intervalSecs), (_) {
@@ -215,6 +234,7 @@ class AlarmService {
   static Future<void> playAlertSound({String? customPath}) async {
     killAudioProcess();
     final soundPath = customPath ?? customAlarmSoundPath;
+    LoggerService.info('Playing alert sound (CustomPath: $soundPath, UseDefault: $useSystemDefaultSound)');
 
     // Play custom audio file if enabled and exists
     if (!useSystemDefaultSound && soundPath != null && soundPath.isNotEmpty && File(soundPath).existsSync()) {
@@ -336,6 +356,7 @@ class AlarmService {
     _alarmRingingTimeoutTimer?.cancel();
     _alarmRingingTimeoutTimer = null;
     killAudioProcess();
+    AudioDuckingService.restoreAudio();
     TimerService.reset();
 
     try {
@@ -348,6 +369,7 @@ class AlarmService {
         alarm.isEnabled = false;
         AppSettings.saveSettings(alarms: _alarms);
       }
+      LoggerService.info('User stopped alarm ringing: "${alarm.label}"');
     }
 
     activeRingingAlarm.value = null;
@@ -359,5 +381,6 @@ class AlarmService {
     _audioLoopTimer?.cancel();
     _alarmRingingTimeoutTimer?.cancel();
     killAudioProcess();
+    AudioDuckingService.restoreAudio();
   }
 }
