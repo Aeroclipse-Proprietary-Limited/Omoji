@@ -237,7 +237,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             border: Border.all(color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.4)),
                           ),
                           child: Text(
-                            'v1.2.2',
+                            'v1.2.3',
                             style: TextStyle(
                               color: Theme.of(context).colorScheme.primary,
                               fontSize: 12,

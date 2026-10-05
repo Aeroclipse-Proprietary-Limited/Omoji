@@ -20,13 +20,10 @@ def try_uinput_paste():
         
         # Press Ctrl+V
         ui.write(e.EV_KEY, e.KEY_LEFTCTRL, 1)
-        ui.syn()
-        time.sleep(0.02)
         ui.write(e.EV_KEY, e.KEY_V, 1)
         ui.syn()
         time.sleep(0.03)
         ui.write(e.EV_KEY, e.KEY_V, 0)
-        ui.syn()
         ui.write(e.EV_KEY, e.KEY_LEFTCTRL, 0)
         ui.syn()
         ui.close()
