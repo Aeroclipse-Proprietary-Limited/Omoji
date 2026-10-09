@@ -584,29 +584,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             onPressed: () => _saveAndGoBack(context),
                           ),
                           const SizedBox(width: 8),
-<<<<<<< HEAD
-                        Text(
-                          'Settings',
-                          style: TextStyle(
-                            color: textColor,
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.15),
-                            borderRadius: BorderRadius.circular(6),
-                            border: Border.all(color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.4)),
-                          ),
-                          child: Text(
-                            'v1.2.5',
-=======
                           Text(
                             'Settings',
->>>>>>> 46c9155ed38526a29b6e5fd33fc1f66a4e4386bf
                             style: TextStyle(
                               color: textColor,
                               fontSize: 18,
