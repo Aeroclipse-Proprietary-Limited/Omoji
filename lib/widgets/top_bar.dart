@@ -2,7 +2,6 @@
 
 import 'package:flutter/material.dart';
 import 'package:omoji/settings.dart';
-import 'package:window_manager/window_manager.dart';
 
 class TopBar extends StatelessWidget {
   final FocusNode searchFocusNode;
@@ -41,15 +40,6 @@ class TopBar extends StatelessWidget {
                 MaterialPageRoute(builder: (context) => const SettingsScreen()),
               );
             },
-          ),
-        ),
-        Focus(
-          canRequestFocus: false,
-          child: IconButton(
-            icon: const Icon(Icons.close_rounded),
-            color: textColor.withValues(alpha: 0.7),
-            splashRadius: 20,
-            onPressed: () async => await windowManager.minimize(),
           ),
         ),
       ],

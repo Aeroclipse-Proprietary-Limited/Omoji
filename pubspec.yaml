@@ -15,6 +15,7 @@ dependencies:
   window_manager: ^0.5.1
   screen_retriever: ^0.2.1
   hotkey_manager: ^0.2.3
+  file_selector: ^1.0.3
 
 dev_dependencies:
   flutter_test:

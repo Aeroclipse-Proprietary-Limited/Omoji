@@ -1,6 +1,7 @@
 // lib/widgets/tab_switcher.dart
 
 import 'package:flutter/material.dart';
+import 'package:omoji/build_config.dart';
 
 class TabSwitcher extends StatelessWidget {
   final String selectedTab;
@@ -102,7 +103,7 @@ class TabSwitcher extends StatelessWidget {
         _buildTabButton(
           context: context,
           label: 'Clock',
-          icon: Icons.access_time_rounded,
+          icon: isDeveloperBuild ? Icons.access_time_rounded : Icons.lock_outline,
           isActive: selectedTab == 'clock',
           onTap: () => onTabChanged('clock'),
         ),

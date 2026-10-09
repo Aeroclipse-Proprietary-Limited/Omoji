@@ -17,9 +17,15 @@ Omoji opens with a keyboard shortcut (`Super + X` / `Cmd + .`) so you can search
 
 ### Prepackaged app
 
+<<<<<<< HEAD
 Users can install the packaged Linux app from the [Omoji Snap Store listing](https://snapcraft.io/omoji). The store determines availability and any price shown there; the source build does not require a store purchase.
 
 For Debian- and Fedora-family distributions, `.deb` and `.rpm` packages can be built using the instructions below. Check [GitHub Releases](https://github.com/Aeroclipse-Proprietary-Limited/Omoji/releases) for prebuilt package downloads when they are published. GitHub release assets in this public repository are downloadable without a store purchase.
+=======
+Users can install a prepackaged Linux app from the [Omoji Snap Store listing](https://snapcraft.io/omoji) or download the `.deb` and `.rpm` packages from [GitHub Releases](https://github.com/Aeroclipse-Proprietary-Limited/Omoji/releases). The Snap Store determines availability and any price shown there. The Debian and RPM packages use the consumer feature set: Settings and Clock tools are locked. Import and export remain available without a purchase.
+
+The public source code is available for developers and contributors. Building from source provides the full, unlocked feature set and does not require a store purchase.
+>>>>>>> 46c9155ed38526a29b6e5fd33fc1f66a4e4386bf
 
 Install a downloaded package with:
 
@@ -33,9 +39,15 @@ or:
 sudo dnf install ./omoji-1.2.5-1.x86_64.rpm
 ```
 
+<<<<<<< HEAD
 ### Build a non-paywalled version from source
 
 Developers and users can build and install Omoji directly from source without purchasing the store version. The repository contains no in-app purchase or paywall enforcement.
+=======
+### Build the full developer version from source
+
+Source builds unlock Settings and Clock tools for developers and contributors. The Linux user installer below explicitly builds this full developer version; `.deb` and `.rpm` package builds explicitly use the consumer feature set. Import and export are available in both versions.
+>>>>>>> 46c9155ed38526a29b6e5fd33fc1f66a4e4386bf
 
 Install Flutter for your platform, then clone the public source repository:
 
@@ -54,7 +66,11 @@ Build and install for your current user without root access. The installer build
 ~/.local/bin/omoji
 ```
 
+<<<<<<< HEAD
 Build installable packages:
+=======
+Build consumer-flavor packages (Settings and Clock locked; backup/import/export still available):
+>>>>>>> 46c9155ed38526a29b6e5fd33fc1f66a4e4386bf
 
 ```bash
 ./scripts/build_deb.sh
@@ -63,6 +79,11 @@ Build installable packages:
 
 The `.deb` is written to `build/debian/`; RPM output is written under `build/rpm/RPMS/`. Building an RPM requires `rpmbuild`.
 
+<<<<<<< HEAD
+=======
+Omoji's data backup includes settings, clipboard history, alarms, to-dos, timer state, and stopwatch state. Clipboard text is included. Custom alarm sound files are not copied; only their configured file path is saved.
+
+>>>>>>> 46c9155ed38526a29b6e5fd33fc1f66a4e4386bf
 #### macOS
 
 ```bash
@@ -83,12 +104,27 @@ Run the project checks before submitting changes:
 flutter analyze
 flutter test
 ```
+<<<<<<< HEAD
 ## Career with Aeroclipse pty ltd
 
 Career applications are prepared as an email to `godlyttn@outlook.com`; applicants attach their CV in their own email app. No algorithm or AI is used in the hiring process
 it is human based HR. 
 
 
+=======
+
+## Website (Firebase Hosting)
+
+The static marketing site lives in `web/` and is configured as the Firebase Hosting public directory. After selecting the Firebase project, deploy it from the repository root:
+
+```bash
+firebase login
+firebase deploy --project aeroclipse-bw --only hosting
+```
+
+Career applications are prepared as an email to `godlyttn@outlook.com`; applicants attach their CV in their own email app. Update the destination in `web/script.js` if it changes.
+
+>>>>>>> 46c9155ed38526a29b6e5fd33fc1f66a4e4386bf
 ## License and credits
 
 Developed and maintained by **Aeroclipse Proprietary Limited**. Licensed under the [GPL-3.0 License](license.md).

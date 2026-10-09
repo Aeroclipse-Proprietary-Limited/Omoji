@@ -8,6 +8,10 @@ import 'package:omoji/models/clipboard_item.dart';
 import 'package:omoji/models/todo_item.dart';
 
 class AppSettings {
+  static const String _backupFormat = 'omoji-backup';
+  static const int _backupVersion = 1;
+  static final ValueNotifier<int> dataImportRevision = ValueNotifier(0);
+
   static File get _configFile {
     final home = Platform.environment['HOME'] ?? '';
     return File('$home/.config/omoji/settings.json');
@@ -24,6 +28,151 @@ class AppSettings {
       debugPrint('Failed to load settings: $e');
     }
     return {};
+  }
+
+  static Future<void> exportBackup(String path) async {
+    final settingsFile = _configFile;
+    final settings = await settingsFile.exists()
+        ? jsonDecode(await settingsFile.readAsString()) as Map<String, dynamic>
+        : <String, dynamic>{};
+    final backup = {
+      'format': _backupFormat,
+      'version': _backupVersion,
+      'exportedAt': DateTime.now().toUtc().toIso8601String(),
+      'settings': settings,
+    };
+    await File(path).writeAsString(
+      const JsonEncoder.withIndent('  ').convert(backup),
+      flush: true,
+    );
+  }
+
+  static Map<String, dynamic> decodeBackup(String content) {
+    final decoded = jsonDecode(content);
+    if (decoded is! Map<String, dynamic> ||
+        decoded['format'] != _backupFormat ||
+        decoded['version'] != _backupVersion ||
+        decoded['settings'] is! Map) {
+      throw const FormatException('This file is not a supported Omoji backup.');
+    }
+
+    final settings = Map<String, dynamic>.from(decoded['settings'] as Map);
+    _validateBackupSettings(settings);
+    return settings;
+  }
+
+  static Future<void> importBackup(
+    String path, {
+    void Function()? beforeReplace,
+  }) async {
+    final settings = decodeBackup(await File(path).readAsString());
+    final file = _configFile;
+    await file.parent.create(recursive: true);
+    final temporaryFile = File('${file.path}.importing');
+    try {
+      await temporaryFile.writeAsString(jsonEncode(settings), flush: true);
+      beforeReplace?.call();
+      await temporaryFile.rename(file.path);
+    } catch (_) {
+      if (await temporaryFile.exists()) {
+        await temporaryFile.delete();
+      }
+      rethrow;
+    }
+    dataImportRevision.value++;
+  }
+
+  static void _validateBackupSettings(Map<String, dynamic> settings) {
+    const booleanKeys = {
+      'privateMode',
+      'autoPaste',
+      'ignoreEmojisInClipboard',
+      'timerIsRunning',
+      'timerIsPaused',
+      'stopwatchIsRunning',
+      'enableEmojiPredictions',
+      'useSystemDefaultSound',
+      'enableAudioDucking',
+    };
+    const integerKeys = {
+      'timerDurationSeconds',
+      'timerTargetTimestampMs',
+      'timerRemainingSeconds',
+      'accentColor',
+      'timerOvertimeStartTimestampMs',
+      'stopwatchStartTimestampMs',
+      'stopwatchAccumulatedMs',
+      'audioLoopIntervalSeconds',
+    };
+    const stringKeys = {
+      'theme',
+      'customAlarmSoundPath',
+      'primaryTrigger',
+      'secondaryTrigger',
+      'dateFormat',
+      'todoDefaultView',
+    };
+
+    for (final key in booleanKeys) {
+      if (settings.containsKey(key) && settings[key] is! bool) {
+        throw FormatException('Invalid "$key" value in Omoji backup.');
+      }
+    }
+    for (final key in integerKeys) {
+      if (settings.containsKey(key) &&
+          settings[key] != null &&
+          settings[key] is! int) {
+        throw FormatException('Invalid "$key" value in Omoji backup.');
+      }
+    }
+    for (final key in stringKeys) {
+      if (settings.containsKey(key) &&
+          settings[key] != null &&
+          settings[key] is! String) {
+        throw FormatException('Invalid "$key" value in Omoji backup.');
+      }
+    }
+
+    for (final key in ['alarms', 'todos', 'clipboardHistory']) {
+      final value = settings[key];
+      if (value == null) continue;
+      if (value is! List) {
+        throw FormatException('Invalid "$key" list in Omoji backup.');
+      }
+      for (final item in value) {
+        if (item is! Map) {
+          throw FormatException('Invalid item in "$key" list in Omoji backup.');
+        }
+        final json = Map<String, dynamic>.from(item);
+        switch (key) {
+          case 'alarms':
+            final alarm = AlarmItem.fromJson(json);
+            if (alarm.repeatDays.any((day) => day < 1 || day > 7) ||
+                alarm.autoSilenceMinutes < 1) {
+              throw const FormatException('Invalid alarm data in Omoji backup.');
+            }
+            break;
+          case 'todos':
+            TodoItem.fromJson(json);
+            break;
+          case 'clipboardHistory':
+            ClipboardItem.fromJson(json);
+            break;
+        }
+      }
+    }
+
+    final laps = settings['stopwatchLaps'];
+    if (laps != null &&
+        (laps is! List || laps.any((lap) => lap is! String))) {
+      throw const FormatException('Invalid stopwatch laps in Omoji backup.');
+    }
+
+    if ((settings['timerDurationSeconds'] as int? ?? 1) < 1 ||
+        (settings['timerRemainingSeconds'] as int? ?? 0) < 0 ||
+        (settings['stopwatchAccumulatedMs'] as int? ?? 0) < 0) {
+      throw const FormatException('Invalid timer or stopwatch value in Omoji backup.');
+    }
   }
 
   static Future<void> saveSettings({
@@ -123,7 +272,7 @@ class AppSettings {
         current['timerIsRunning'] = timerIsRunning;
       }
       if (timerIsPaused != null) {
-        current['timerfile.parentIsPaused'] = timerIsPaused;
+        current['timerIsPaused'] = timerIsPaused;
       }
       if (timerRemainingSeconds != null) {
         current['timerRemainingSeconds'] = timerRemainingSeconds;

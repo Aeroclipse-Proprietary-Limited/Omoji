@@ -5,7 +5,11 @@ set -e
 cd "$(dirname "$0")/.."
 
 echo "Building Omoji Linux release bundle..."
+<<<<<<< HEAD
 flutter build linux --release
+=======
+flutter build linux --release --dart-define=OMOJI_DEVELOPER_BUILD=true
+>>>>>>> 46c9155ed38526a29b6e5fd33fc1f66a4e4386bf
 
 INSTALL_DIR="${HOME}/.local/lib/omoji"
 BIN_DIR="${HOME}/.local/bin"
@@ -28,7 +32,11 @@ cp -r build/linux/x64/release/bundle/* "${INSTALL_DIR}/"
 
 mkdir -p "${INSTALL_DIR}/lib/scripts"
 mkdir -p "${INSTALL_DIR}/lib/data"
+<<<<<<< HEAD
 cp scripts/emoji_prediction_daemon.py scripts/omoji_paste.py "${INSTALL_DIR}/lib/scripts/"
+=======
+cp lib/scripts/emoji_prediction_daemon.py lib/scripts/omoji_paste.py "${INSTALL_DIR}/lib/scripts/"
+>>>>>>> 46c9155ed38526a29b6e5fd33fc1f66a4e4386bf
 cp -r lib/data/* "${INSTALL_DIR}/lib/data/"
 
 echo "Creating binary executable wrapper in ${BIN_DIR}/omoji..."

@@ -5,7 +5,11 @@ set -e
 cd "$(dirname "$0")/.."
 
 echo "Building Omoji Linux release bundle..."
+<<<<<<< HEAD
 flutter build linux --release
+=======
+flutter build linux --release --dart-define=OMOJI_DEVELOPER_BUILD=false
+>>>>>>> 46c9155ed38526a29b6e5fd33fc1f66a4e4386bf
 
 # Verify rpmbuild is available
 if ! command -v rpmbuild &> /dev/null; then
@@ -15,7 +19,15 @@ if ! command -v rpmbuild &> /dev/null; then
 fi
 
 PACKAGE_NAME="omoji"
+<<<<<<< HEAD
+<<<<<<<< HEAD:scripts/build_rpm.sh
 VERSION="1.2.5"
+========
+VERSION="1.2.3"
+>>>>>>>> 46c9155ed38526a29b6e5fd33fc1f66a4e4386bf:lib/scripts/build_rpm.sh
+=======
+VERSION="1.2.5"
+>>>>>>> 46c9155ed38526a29b6e5fd33fc1f66a4e4386bf
 BUILD_DIR="build/rpm"
 
 rm -rf "$BUILD_DIR"
@@ -26,7 +38,11 @@ mkdir -p "$BUILD_DIR/SOURCES/bundle"
 cp -r build/linux/x64/release/bundle/* "$BUILD_DIR/SOURCES/bundle/"
 mkdir -p "$BUILD_DIR/SOURCES/bundle/lib/scripts"
 mkdir -p "$BUILD_DIR/SOURCES/bundle/lib/data"
+<<<<<<< HEAD
 cp scripts/emoji_prediction_daemon.py scripts/omoji_paste.py "$BUILD_DIR/SOURCES/bundle/lib/scripts/"
+=======
+cp lib/scripts/emoji_prediction_daemon.py lib/scripts/omoji_paste.py "$BUILD_DIR/SOURCES/bundle/lib/scripts/"
+>>>>>>> 46c9155ed38526a29b6e5fd33fc1f66a4e4386bf
 cp -r lib/data/* "$BUILD_DIR/SOURCES/bundle/lib/data/"
 if [ -f "lib/assets/imgs/app-logo.png" ]; then
     cp "lib/assets/imgs/app-logo.png" "$BUILD_DIR/SOURCES/omoji.png"

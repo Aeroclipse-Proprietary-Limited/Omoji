@@ -3,16 +3,20 @@
 import 'dart:ui';
 import 'dart:io';
 import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:omoji/build_config.dart';
 import 'package:omoji/data/emoji_map.dart';
 import 'package:omoji/models/alarm_item.dart';
 import 'package:omoji/models/clipboard_item.dart';
 import 'package:omoji/models/todo_item.dart';
+import 'package:omoji/main.dart';
 import 'package:omoji/services/alarm_service.dart';
 import 'package:omoji/services/app_settings.dart';
 import 'package:omoji/services/emoji_prediction_service.dart';
 import 'package:omoji/services/hotkey_service.dart';
+import 'package:omoji/services/stopwatch_service.dart';
 import 'package:omoji/services/timer_service.dart';
 import 'package:omoji/widgets/clipboard_view.dart';
 import 'package:omoji/widgets/clock_view.dart';
@@ -55,6 +59,7 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
     );
     return emojiRegExp.hasMatch(trimmed);
   }
+
   List<ClipboardItem> _clipboardHistory = [];
   List<AlarmItem> _alarms = [];
   List<TodoItem> _todos = [];
@@ -68,6 +73,7 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
   void initState() {
     super.initState();
     windowManager.addListener(this);
+    AppSettings.dataImportRevision.addListener(_handleImportedData);
 
     _focusNode = FocusNode(
       onKeyEvent: (node, event) {
@@ -86,9 +92,15 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
 
             if (event.logicalKey == LogicalKeyboardKey.escape) {
               final trimmed = _searchController.text.trim();
-              final words = trimmed.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
+              final words = trimmed
+                  .split(RegExp(r'\s+'))
+                  .where((w) => w.isNotEmpty)
+                  .toList();
               if (words.isNotEmpty) {
-                final cleanLast = words.last.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
+                final cleanLast = words.last.toLowerCase().replaceAll(
+                  RegExp(r'[^a-z0-9]'),
+                  '',
+                );
                 setState(() {
                   _dismissedPredictionWord = cleanLast;
                   _currentPredictions = [];
@@ -118,7 +130,9 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
     _startClipboardMonitoring();
 
     EmojiPredictionService.init();
-    EmojiPredictionService.currentEvent.addListener(_handleGlobalPredictionEvent);
+    EmojiPredictionService.currentEvent.addListener(
+      _handleGlobalPredictionEvent,
+    );
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted && _selectedTab != 'clock') {
@@ -150,18 +164,26 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
           double targetX = (screenWidth - 440) / 2;
           double targetY = screenHeight - 190;
 
-          if (event.x != null && event.y != null && event.x! > 0 && event.y! > 0) {
-            targetX = (event.x! - 220).clamp(10.0, screenWidth - 450.0).toDouble();
-            targetY = (event.y! - 80).clamp(10.0, screenHeight - 80.0).toDouble();
+          if (event.x != null &&
+              event.y != null &&
+              event.x! > 0 &&
+              event.y! > 0) {
+            targetX = (event.x! - 220)
+                .clamp(10.0, screenWidth - 450.0)
+                .toDouble();
+            targetY = (event.y! - 80)
+                .clamp(10.0, screenHeight - 80.0)
+                .toDouble();
           }
 
           try {
-            await const MethodChannel('com.aeroclipse.omoji/window').invokeMethod('showOverlay', {
-              'x': targetX,
-              'y': targetY,
-              'width': 440.0,
-              'height': 60.0,
-            });
+            await const MethodChannel('com.aeroclipse.omoji/window')
+                .invokeMethod('showOverlay', {
+                  'x': targetX,
+                  'y': targetY,
+                  'width': 440.0,
+                  'height': 60.0,
+                });
           } catch (e) {
             debugPrint('Error showing native GTK overlay: $e');
           }
@@ -190,7 +212,8 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
         _globalPredictionWord = "";
       });
       try {
-        await const MethodChannel('com.aeroclipse.omoji/window').invokeMethod('hideOverlay');
+        await const MethodChannel('com.aeroclipse.omoji/window')
+            .invokeMethod('hideOverlay');
       } catch (_) {}
     }
   }
@@ -201,7 +224,10 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
     final trimmed = query.trim();
     if (trimmed.isEmpty) return [];
 
-    final words = trimmed.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
+    final words = trimmed
+        .split(RegExp(r'\s+'))
+        .where((w) => w.isNotEmpty)
+        .toList();
     if (words.isEmpty) return [];
 
     final rawLast = words.last.toLowerCase();
@@ -227,7 +253,8 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
         if (tokens.contains(cleanLast)) {
           exactMatches.add(emoji);
           addedChars.add(char);
-        } else if (cleanLast.length >= 3 && tokens.any((t) => t.startsWith(cleanLast))) {
+        } else if (cleanLast.length >= 3 &&
+            tokens.any((t) => t.startsWith(cleanLast))) {
           prefixMatches.add(emoji);
           addedChars.add(char);
         }
@@ -244,11 +271,19 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
         : const Color(0xFFFFFFFF).withValues(alpha: 0.95);
     final borderColor = accentColor.withValues(alpha: 0.5);
 
-    final words = _searchController.text.trim().split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
-    final lastWord = _isFloatingOverlayMode ? _globalPredictionWord : (words.isNotEmpty ? words.last : '');
+    final words = _searchController.text
+        .trim()
+        .split(RegExp(r'\s+'))
+        .where((w) => w.isNotEmpty)
+        .toList();
+    final lastWord = _isFloatingOverlayMode
+        ? _globalPredictionWord
+        : (words.isNotEmpty ? words.last : '');
 
     return Container(
-      margin: _isFloatingOverlayMode ? EdgeInsets.zero : const EdgeInsets.only(bottom: 6),
+      margin: _isFloatingOverlayMode
+          ? EdgeInsets.zero
+          : const EdgeInsets.only(bottom: 6),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         color: bg,
@@ -277,7 +312,11 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
             ),
           ),
           const SizedBox(width: 8),
-          Icon(Icons.arrow_forward_rounded, color: textColor.withValues(alpha: 0.4), size: 14),
+          Icon(
+            Icons.arrow_forward_rounded,
+            color: textColor.withValues(alpha: 0.4),
+            size: 14,
+          ),
           const SizedBox(width: 8),
           Expanded(
             child: SingleChildScrollView(
@@ -299,11 +338,16 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
                           });
                         },
                         child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
                           decoration: BoxDecoration(
                             color: accentColor.withValues(alpha: 0.12),
                             borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: accentColor.withValues(alpha: 0.3)),
+                            border: Border.all(
+                              color: accentColor.withValues(alpha: 0.3),
+                            ),
                           ),
                           child: Text(
                             char,
@@ -342,7 +386,11 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
               child: const Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.keyboard_tab_rounded, color: Colors.white, size: 13),
+                  Icon(
+                    Icons.keyboard_tab_rounded,
+                    color: Colors.white,
+                    size: 13,
+                  ),
                   SizedBox(width: 4),
                   Text(
                     'Tab Autofill',
@@ -363,9 +411,15 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
               borderRadius: BorderRadius.circular(12),
               onTap: () {
                 final trimmed = _searchController.text.trim();
-                final words = trimmed.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
+                final words = trimmed
+                    .split(RegExp(r'\s+'))
+                    .where((w) => w.isNotEmpty)
+                    .toList();
                 if (words.isNotEmpty) {
-                  final cleanLast = words.last.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
+                  final cleanLast = words.last.toLowerCase().replaceAll(
+                    RegExp(r'[^a-z0-9]'),
+                    '',
+                  );
                   setState(() {
                     _dismissedPredictionWord = cleanLast;
                     _currentPredictions = [];
@@ -390,6 +444,7 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
   @override
   void dispose() {
     windowManager.removeListener(this);
+    AppSettings.dataImportRevision.removeListener(_handleImportedData);
     _searchController.dispose();
     _focusNode.dispose();
     _keyboardFocusNode.dispose();
@@ -397,6 +452,85 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
     _editController.dispose();
     AlarmService.dispose();
     super.dispose();
+  }
+
+  Future<void> _handleImportedData() async {
+    await TimerService.init();
+    await StopwatchService.init();
+
+    final settings = await AppSettings.loadSettings();
+    if (!mounted) return;
+    final themeName = settings['theme'] as String?;
+    themeNotifier.value = switch (themeName) {
+      'light' => ThemeMode.light,
+      'dark' => ThemeMode.dark,
+      _ => ThemeMode.system,
+    };
+    final accentValue = settings['accentColor'] as int?;
+    accentColorNotifier.value = Color(accentValue ?? 0xFFB91C1C);
+    final savedDateFormat = settings['dateFormat'] as String?;
+    dateFormatNotifier.value = savedDateFormat == 'yyyy/mm/dd'
+        ? 'yyyy/mm/dd'
+        : 'dd/mm/yyyy';
+    const validTodoViews = {'all', 'upcoming', 'missed', 'completed'};
+    final todoView = settings['todoDefaultView'] as String?;
+    todoDefaultViewNotifier.value =
+        todoView != null && validTodoViews.contains(todoView)
+        ? todoView
+        : 'upcoming';
+    await _loadClipboardSettings();
+  }
+
+  Future<void> _showClockUpgradeDialog() async {
+    await showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Clock tools are premium'),
+        content: const Text(
+          'Alarms, timers, stopwatches, and to-do reminders are available in '
+          'the Omoji store version. Data import and export remain available '
+          'in this version.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Not now'),
+          ),
+          FilledButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              await _openStoreListing();
+            },
+            child: const Text('View store listing'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _openStoreListing() async {
+    final uri = Uri.parse('https://snapcraft.io/omoji');
+    final command = Platform.isMacOS
+        ? ('open', [uri.toString()])
+        : Platform.isWindows
+        ? ('rundll32', ['url.dll,FileProtocolHandler', uri.toString()])
+        : ('xdg-open', [uri.toString()]);
+    try {
+      final result = await Process.run(command.$1, command.$2);
+      if (result.exitCode != 0 && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Could not open the store listing: ${result.stderr}'),
+          ),
+        );
+      }
+    } on ProcessException catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not open the store listing: $error')),
+        );
+      }
+    }
   }
 
   @override
@@ -430,25 +564,25 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
     if (Platform.isLinux) {
       // 1. Try kernel uinput via python3 evdev (Universal for native Wayland & X11)
       try {
-        final res = await Process.run('python3', [
-          '-c',
-          '''import evdev, time
-            from evdev import UInput, ecodes as e
-            ui = UInput()
-            time.sleep(0.05)
-            for k in [e.KEY_LEFTMETA, e.KEY_RIGHTMETA, e.KEY_LEFTALT, e.KEY_RIGHTALT, e.KEY_LEFTSHIFT, e.KEY_RIGHTSHIFT, e.KEY_LEFTCTRL, e.KEY_RIGHTCTRL]:
-                ui.write(e.EV_KEY, k, 0)
-            ui.syn()
-            time.sleep(0.02)
-            ui.write(e.EV_KEY, e.KEY_LEFTCTRL, 1)
-            ui.write(e.EV_KEY, e.KEY_V, 1)
-            ui.syn()
-            time.sleep(0.03)
-            ui.write(e.EV_KEY, e.KEY_V, 0)
-            ui.write(e.EV_KEY, e.KEY_LEFTCTRL, 0)
-            ui.syn()
-            ui.close()'''
-        ]);
+        final evdevScript = [
+          'import evdev, time',
+          'from evdev import UInput, ecodes as e',
+          'ui = UInput()',
+          'time.sleep(0.05)',
+          'for k in [e.KEY_LEFTMETA, e.KEY_RIGHTMETA, e.KEY_LEFTALT, e.KEY_RIGHTALT, e.KEY_LEFTSHIFT, e.KEY_RIGHTSHIFT, e.KEY_LEFTCTRL, e.KEY_RIGHTCTRL]:',
+          '    ui.write(e.EV_KEY, k, 0)',
+          'ui.syn()',
+          'time.sleep(0.02)',
+          'ui.write(e.EV_KEY, e.KEY_LEFTCTRL, 1)',
+          'ui.write(e.EV_KEY, e.KEY_V, 1)',
+          'ui.syn()',
+          'time.sleep(0.03)',
+          'ui.write(e.EV_KEY, e.KEY_V, 0)',
+          'ui.write(e.EV_KEY, e.KEY_LEFTCTRL, 0)',
+          'ui.syn()',
+          'ui.close()',
+        ].join('\n');
+        final res = await Process.run('python3', ['-c', evdevScript]);
         if (res.exitCode == 0) return;
       } catch (e) {
         debugPrint("python3 evdev paste error: $e");
@@ -456,7 +590,11 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
 
       // 2. Try xdotool key --clearmodifiers ctrl+v
       try {
-        final res = await Process.run('xdotool', ['key', '--clearmodifiers', 'ctrl+v']);
+        final res = await Process.run('xdotool', [
+          'key',
+          '--clearmodifiers',
+          'ctrl+v',
+        ]);
         if (res.exitCode == 0) return;
       } catch (e) {
         debugPrint("xdotool key paste error: $e");
@@ -464,7 +602,14 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
 
       // 3. Try wtype paste (Ctrl+V) or direct text injection
       try {
-        final res = await Process.run('wtype', ['-M', 'ctrl', '-k', 'v', '-m', 'ctrl']);
+        final res = await Process.run('wtype', [
+          '-M',
+          'ctrl',
+          '-k',
+          'v',
+          '-m',
+          'ctrl',
+        ]);
         if (res.exitCode == 0) return;
       } catch (e) {
         debugPrint("wtype paste error: $e");
@@ -479,7 +624,13 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
 
       // 4. Try ydotool key 29:1 47:1 47:0 29:0 (Ctrl+V)
       try {
-        final res = await Process.run('ydotool', ['key', '29:1', '47:1', '47:0', '29:0']);
+        final res = await Process.run('ydotool', [
+          'key',
+          '29:1',
+          '47:1',
+          '47:0',
+          '29:0',
+        ]);
         if (res.exitCode == 0) return;
       } catch (e) {
         debugPrint("ydotool paste error: $e");
@@ -506,7 +657,7 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
       try {
         await Process.run('osascript', [
           '-e',
-          'tell application "System Events" to keystroke "v" using command down'
+          'tell application "System Events" to keystroke "v" using command down',
         ]);
       } catch (e) {
         debugPrint("macOS AppleScript paste error: $e");
@@ -515,7 +666,7 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
       try {
         await Process.run('powershell', [
           '-c',
-          "Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('^v')"
+          "Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('^v')",
         ]);
       } catch (e) {
         debugPrint("Windows PowerShell paste error: $e");
@@ -552,45 +703,46 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
 
   Future<void> _loadClipboardSettings() async {
     final settings = await AppSettings.loadSettings();
+    if (!mounted) return;
     setState(() {
       _privateMode = settings['privateMode'] as bool? ?? false;
       _autoPaste = settings['autoPaste'] as bool? ?? true;
-      _ignoreEmojisInClipboard = settings['ignoreEmojisInClipboard'] as bool? ?? true;
-      _enableEmojiPredictions = settings['enableEmojiPredictions'] as bool? ?? true;
+      _ignoreEmojisInClipboard =
+          settings['ignoreEmojisInClipboard'] as bool? ?? true;
+      _enableEmojiPredictions =
+          settings['enableEmojiPredictions'] as bool? ?? true;
       final historyRaw = settings['clipboardHistory'] as List<dynamic>?;
-      if (historyRaw != null) {
-        _clipboardHistory = historyRaw
-            .map((item) => ClipboardItem.fromJson(item as Map<String, dynamic>))
-            .toList();
-      }
+      _clipboardHistory = (historyRaw ?? [])
+          .map((item) => ClipboardItem.fromJson(item as Map<String, dynamic>))
+          .toList();
       final alarmsRaw = settings['alarms'] as List<dynamic>?;
-      if (alarmsRaw != null) {
-        _alarms = alarmsRaw
-            .map((item) => AlarmItem.fromJson(item as Map<String, dynamic>))
-            .toList();
-      }
+      _alarms = (alarmsRaw ?? [])
+          .map((item) => AlarmItem.fromJson(item as Map<String, dynamic>))
+          .toList();
       final todosRaw = settings['todos'] as List<dynamic>?;
-      if (todosRaw != null) {
-        _todos = todosRaw
-            .map((item) => TodoItem.fromJson(item as Map<String, dynamic>))
-            .toList();
-      }
+      _todos = (todosRaw ?? [])
+          .map((item) => TodoItem.fromJson(item as Map<String, dynamic>))
+          .toList();
     });
     final customSoundPath = settings['customAlarmSoundPath'] as String?;
     final savedUseSystemDefault = settings['useSystemDefaultSound'] as bool?;
-    final useSystemDefault = savedUseSystemDefault ?? (customSoundPath == null || customSoundPath.isEmpty);
+    final useSystemDefault =
+        savedUseSystemDefault ??
+        (customSoundPath == null || customSoundPath.isEmpty);
     final loopInterval = settings['audioLoopIntervalSeconds'] as int?;
-    AlarmService.init(
+    await AlarmService.init(
       _alarms,
       todos: _todos,
       customSoundPath: customSoundPath,
       useSystemDefault: useSystemDefault,
       loopIntervalSeconds: loopInterval,
+      enableDucking: settings['enableAudioDucking'] as bool?,
     );
 
     final primaryTrigger = Platform.isWindows ? 'Super + Z' : 'Super + X';
-    final secondaryTrigger = (settings['secondaryTrigger'] as String?) ?? 'Ctrl + Alt + O';
-    HotkeyService.registerTriggers(
+    final secondaryTrigger =
+        (settings['secondaryTrigger'] as String?) ?? 'Ctrl + Alt + O';
+    await HotkeyService.registerTriggers(
       primaryTrigger: primaryTrigger,
       secondaryTrigger: secondaryTrigger,
     );
@@ -615,8 +767,9 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
             return;
           }
 
-          final existingIndex =
-              _clipboardHistory.indexWhere((item) => item.text == text);
+          final existingIndex = _clipboardHistory.indexWhere(
+            (item) => item.text == text,
+          );
           if (existingIndex != -1) {
             final item = _clipboardHistory.removeAt(existingIndex);
             item.timestamp = DateTime.now().millisecondsSinceEpoch;
@@ -624,8 +777,9 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
           } else {
             _clipboardHistory.insert(0, ClipboardItem(text: text));
             if (_clipboardHistory.length > 50) {
-              int lastUnpinned =
-                  _clipboardHistory.lastIndexWhere((item) => !item.isPinned);
+              int lastUnpinned = _clipboardHistory.lastIndexWhere(
+                (item) => !item.isPinned,
+              );
               if (lastUnpinned != -1) {
                 _clipboardHistory.removeAt(lastUnpinned);
               } else {
@@ -710,10 +864,13 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
       builder: (context) {
         return AlertDialog(
           backgroundColor: const Color(0xFF2E2E2E),
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title:
-              const Text('Clear History', style: TextStyle(color: Colors.white)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: const Text(
+            'Clear History',
+            style: TextStyle(color: Colors.white),
+          ),
           content: Text(
             'Are you sure you want to clear your clipboard history? Pinned items will be kept.',
             style: TextStyle(color: Colors.white.withValues(alpha: 0.7)),
@@ -731,8 +888,10 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
                 });
                 AppSettings.saveSettings(clipboardHistory: _clipboardHistory);
               },
-              child:
-                  const Text('Clear', style: TextStyle(color: Colors.redAccent)),
+              child: const Text(
+                'Clear',
+                style: TextStyle(color: Colors.redAccent),
+              ),
             ),
           ],
         );
@@ -773,276 +932,330 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
       body: Stack(
         children: [
           KeyboardListener(
-        focusNode: _keyboardFocusNode,
-        autofocus: true,
-        onKeyEvent: (KeyEvent event) {
-          if (event is KeyDownEvent) {
-            if (_editingIndex != null) return;
+            focusNode: _keyboardFocusNode,
+            autofocus: true,
+            onKeyEvent: (KeyEvent event) {
+              if (event is KeyDownEvent) {
+                if (_editingIndex != null) return;
 
-            if (event.logicalKey == LogicalKeyboardKey.escape) {
-              if (AlarmService.activeRingingAlarm.value != null ||
-                  AlarmService.activeRingingTimer.value != null) {
-                AlarmService.stopRinging();
-                setState(() {});
-                return;
+                if (event.logicalKey == LogicalKeyboardKey.escape) {
+                  if (AlarmService.activeRingingAlarm.value != null ||
+                      AlarmService.activeRingingTimer.value != null) {
+                    AlarmService.stopRinging();
+                    setState(() {});
+                    return;
+                  }
+                  if (_searchController.text.isNotEmpty) {
+                    _searchController.clear();
+                    if (_selectedTab != 'clock') _focusNode.requestFocus();
+                  } else {
+                    windowManager.hide();
+                  }
+                  return;
+                }
+
+                if (_selectedTab == 'clock') return;
+
+                if (_focusNode.hasFocus) return;
+
+                final char = event.character;
+                if (char != null &&
+                    char.isNotEmpty &&
+                    event.logicalKey != LogicalKeyboardKey.tab &&
+                    event.logicalKey != LogicalKeyboardKey.enter) {
+                  _focusNode.requestFocus();
+                  _searchController.text = _searchController.text + char;
+                  _searchController.selection = TextSelection.fromPosition(
+                    TextPosition(offset: _searchController.text.length),
+                  );
+                } else if (event.logicalKey == LogicalKeyboardKey.backspace) {
+                  _focusNode.requestFocus();
+                  if (_searchController.text.isNotEmpty) {
+                    _searchController.text = _searchController.text.substring(
+                      0,
+                      _searchController.text.length - 1,
+                    );
+                    _searchController.selection = TextSelection.fromPosition(
+                      TextPosition(offset: _searchController.text.length),
+                    );
+                  }
+                }
               }
-              if (_searchController.text.isNotEmpty) {
-                _searchController.clear();
-                if (_selectedTab != 'clock') _focusNode.requestFocus();
-              } else {
-                windowManager.hide();
-              }
-              return;
-            }
-
-            if (_selectedTab == 'clock') return;
-
-            if (_focusNode.hasFocus) return;
-
-            final char = event.character;
-            if (char != null &&
-                char.isNotEmpty &&
-                event.logicalKey != LogicalKeyboardKey.tab &&
-                event.logicalKey != LogicalKeyboardKey.enter) {
-              _focusNode.requestFocus();
-              _searchController.text = _searchController.text + char;
-              _searchController.selection = TextSelection.fromPosition(
-                TextPosition(offset: _searchController.text.length),
-              );
-            } else if (event.logicalKey == LogicalKeyboardKey.backspace) {
-              _focusNode.requestFocus();
-              if (_searchController.text.isNotEmpty) {
-                _searchController.text = _searchController.text
-                    .substring(0, _searchController.text.length - 1);
-                _searchController.selection = TextSelection.fromPosition(
-                  TextPosition(offset: _searchController.text.length),
-                );
-              }
-            }
-          }
-        },
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(16),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 20.0, sigmaY: 20.0),
-            child: Container(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(16),
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: isDark
-                      ? [
-                          const Color(0xFF2E2E2E).withValues(alpha: 0.65),
-                          const Color(0xFF1A1A1A).withValues(alpha: 0.45),
-                          const Color(0xFF121212).withValues(alpha: 0.75),
-                        ]
-                      : [
-                          const Color(0xFFFFFFFF).withValues(alpha: 0.65),
-                          const Color(0xFFE0E0E0).withValues(alpha: 0.45),
-                          const Color(0xFFF5F5F5).withValues(alpha: 0.75),
-                        ],
-                  stops: const [0.0, 0.4, 1.0],
-                ),
-                border: Border.all(
-                  color: isDark
-                      ? Colors.white.withValues(alpha: 0.15)
-                      : Colors.black.withValues(alpha: 0.15),
-                  width: 1.5,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: isDark ? 0.5 : 0.2),
-                    blurRadius: 30,
-                    offset: const Offset(0, 15),
-                  ),
-                ],
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(18.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    TopBar(searchFocusNode: _focusNode),
-                    ValueListenableBuilder<AlarmItem?>(
-                      valueListenable: AlarmService.activeRingingAlarm,
-                      builder: (context, activeAlarm, _) {
-                        if (activeAlarm == null) return const SizedBox.shrink();
-                        return Container(
-                          margin: const EdgeInsets.only(top: 8, bottom: 4),
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                          decoration: BoxDecoration(
-                            color: Colors.redAccent.withValues(alpha: 0.2),
-                            border: Border.all(color: Colors.redAccent, width: 1.5),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: Row(
-                            children: [
-                              const Icon(Icons.alarm_on_rounded, color: Colors.redAccent, size: 20),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  'RINGING: ${activeAlarm.time} - ${activeAlarm.label}',
-                                  style: const TextStyle(
-                                    color: Colors.redAccent,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                              ElevatedButton.icon(
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.redAccent,
-                                  foregroundColor: Colors.white,
-                                  visualDensity: VisualDensity.compact,
-                                ),
-                                onPressed: () {
-                                  AlarmService.stopRinging();
-                                  setState(() {});
-                                },
-                                icon: const Icon(Icons.alarm_off_rounded, size: 16),
-                                label: const Text(
-                                  'STOP ALARM',
-                                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
-                                ),
-                              ),
+            },
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 20.0, sigmaY: 20.0),
+                child: Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(16),
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: isDark
+                          ? [
+                              const Color(0xFF2E2E2E).withValues(alpha: 0.65),
+                              const Color(0xFF1A1A1A).withValues(alpha: 0.45),
+                              const Color(0xFF121212).withValues(alpha: 0.75),
+                            ]
+                          : [
+                              const Color(0xFFFFFFFF).withValues(alpha: 0.65),
+                              const Color(0xFFE0E0E0).withValues(alpha: 0.45),
+                              const Color(0xFFF5F5F5).withValues(alpha: 0.75),
                             ],
-                          ),
-                        );
-                      },
+                      stops: const [0.0, 0.4, 1.0],
                     ),
-                    ValueListenableBuilder<String?>(
-                      valueListenable: AlarmService.silencedAlarmNotice,
-                      builder: (context, noticeText, _) {
-                        if (noticeText == null || noticeText.isEmpty) return const SizedBox.shrink();
-                        return Container(
-                          margin: const EdgeInsets.only(top: 8, bottom: 4),
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                          decoration: BoxDecoration(
-                            color: Colors.amber.withValues(alpha: 0.2),
-                            border: Border.all(color: Colors.amber, width: 1.5),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: Row(
-                            children: [
-                              const Icon(Icons.notifications_off_rounded, color: Colors.amber, size: 20),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  noticeText,
-                                  style: const TextStyle(
-                                    color: Colors.amber,
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                  overflow: TextOverflow.ellipsis,
-                                  maxLines: 2,
-                                ),
-                              ),
-                              const SizedBox(width: 6),
-                              ElevatedButton.icon(
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.amber,
-                                  foregroundColor: Colors.black87,
-                                  visualDensity: VisualDensity.compact,
-                                ),
-                                onPressed: () {
-                                  AlarmService.silencedAlarmNotice.value = null;
-                                  setState(() {});
-                                },
-                                icon: const Icon(Icons.check_circle_outline_rounded, size: 15),
-                                label: const Text(
-                                  'DISMISS',
-                                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold),
-                                ),
-                              ),
-                            ],
-                          ),
-                        );
-                      },
+                    border: Border.all(
+                      color: isDark
+                          ? Colors.white.withValues(alpha: 0.15)
+                          : Colors.black.withValues(alpha: 0.15),
+                      width: 1.5,
                     ),
-                    const SizedBox(height: 12),
-                    TabSwitcher(
-                      selectedTab: _selectedTab,
-                      onTabChanged: (tab) {
-                        setState(() {
-                          _selectedTab = tab;
-                          _editingIndex = null;
-                          if (tab == 'clock') {
-                            _searchController.clear();
-                          }
-                        });
-                        if (tab != 'clock') {
-                          WidgetsBinding.instance.addPostFrameCallback((_) {
-                            _focusNode.requestFocus();
-                          });
-                        }
-                      },
-                      searchFocusNode: _focusNode,
-                    ),
-                    if (_selectedTab != 'clock') ...[
-                      if (_enableEmojiPredictions && _currentPredictions.isNotEmpty) ...[
-                        const SizedBox(height: 8),
-                        _buildEmojiPredictionBar(isDark, textColor),
-                      ],
-                      const SizedBox(height: 12),
-                      TextField(
-                        controller: _searchController,
-                        focusNode: _focusNode,
-                        autofocus: true,
-                        style: TextStyle(color: textColor),
-                        onSubmitted: (val) {
-                          if (_enableEmojiPredictions && _currentPredictions.isNotEmpty) {
-                            final topEmoji = _currentPredictions.first['char']!;
-                            _handleEmojiSelection(topEmoji);
-                            setState(() {
-                              _dismissedPredictionWord = null;
-                              _currentPredictions = [];
-                            });
-                          }
-                        },
-                        decoration: InputDecoration(
-                          hintText: _selectedTab == 'emojis'
-                              ? 'Search emojis...'
-                              : 'Type here to search...',
-                          hintStyle: TextStyle(
-                              color: textColor.withValues(alpha: 0.35)),
-                          prefixIcon: Icon(Icons.search, color: Theme.of(context).colorScheme.primary),
-                          filled: true,
-                          fillColor: inputBg,
-                          contentPadding: const EdgeInsets.symmetric(vertical: 14),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(color: inputBorderColor),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(
-                                color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.6),
-                                width: 1.5),
-                          ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(
+                          alpha: isDark ? 0.5 : 0.2,
                         ),
+                        blurRadius: 30,
+                        offset: const Offset(0, 15),
                       ),
                     ],
-                    const SizedBox(height: 16),
-                    Expanded(
-                      child: _selectedTab == 'clock'
-                          ? ClockView(
-                              alarms: _alarms,
-                              onAlarmsChanged: (updated) {
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(18.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        TopBar(searchFocusNode: _focusNode),
+                        ValueListenableBuilder<AlarmItem?>(
+                          valueListenable: AlarmService.activeRingingAlarm,
+                          builder: (context, activeAlarm, _) {
+                            if (activeAlarm == null)
+                              return const SizedBox.shrink();
+                            return Container(
+                              margin: const EdgeInsets.only(top: 8, bottom: 4),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 8,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.redAccent.withValues(alpha: 0.2),
+                                border: Border.all(
+                                  color: Colors.redAccent,
+                                  width: 1.5,
+                                ),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Row(
+                                children: [
+                                  const Icon(
+                                    Icons.alarm_on_rounded,
+                                    color: Colors.redAccent,
+                                    size: 20,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      'RINGING: ${activeAlarm.time} - ${activeAlarm.label}',
+                                      style: const TextStyle(
+                                        color: Colors.redAccent,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                  ElevatedButton.icon(
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.redAccent,
+                                      foregroundColor: Colors.white,
+                                      visualDensity: VisualDensity.compact,
+                                    ),
+                                    onPressed: () {
+                                      AlarmService.stopRinging();
+                                      setState(() {});
+                                    },
+                                    icon: const Icon(
+                                      Icons.alarm_off_rounded,
+                                      size: 16,
+                                    ),
+                                    label: const Text(
+                                      'STOP ALARM',
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
+                        ValueListenableBuilder<String?>(
+                          valueListenable: AlarmService.silencedAlarmNotice,
+                          builder: (context, noticeText, _) {
+                            if (noticeText == null || noticeText.isEmpty)
+                              return const SizedBox.shrink();
+                            return Container(
+                              margin: const EdgeInsets.only(top: 8, bottom: 4),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 8,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.amber.withValues(alpha: 0.2),
+                                border: Border.all(
+                                  color: Colors.amber,
+                                  width: 1.5,
+                                ),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Row(
+                                children: [
+                                  const Icon(
+                                    Icons.notifications_off_rounded,
+                                    color: Colors.amber,
+                                    size: 20,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      noticeText,
+                                      style: const TextStyle(
+                                        color: Colors.amber,
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
+                                      maxLines: 2,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  ElevatedButton.icon(
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.amber,
+                                      foregroundColor: Colors.black87,
+                                      visualDensity: VisualDensity.compact,
+                                    ),
+                                    onPressed: () {
+                                      AlarmService.silencedAlarmNotice.value =
+                                          null;
+                                      setState(() {});
+                                    },
+                                    icon: const Icon(
+                                      Icons.check_circle_outline_rounded,
+                                      size: 15,
+                                    ),
+                                    label: const Text(
+                                      'DISMISS',
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
+                        const SizedBox(height: 12),
+                        TabSwitcher(
+                          selectedTab: _selectedTab,
+                          onTabChanged: (tab) {
+                            if (tab == 'clock' && !isDeveloperBuild) {
+                              _showClockUpgradeDialog();
+                              return;
+                            }
+                            setState(() {
+                              _selectedTab = tab;
+                              _editingIndex = null;
+                              if (tab == 'clock') {
+                                _searchController.clear();
+                              }
+                            });
+                            if (tab != 'clock') {
+                              WidgetsBinding.instance.addPostFrameCallback((_) {
+                                _focusNode.requestFocus();
+                              });
+                            }
+                          },
+                          searchFocusNode: _focusNode,
+                        ),
+                        if (_selectedTab != 'clock') ...[
+                          if (_enableEmojiPredictions &&
+                              _currentPredictions.isNotEmpty) ...[
+                            const SizedBox(height: 8),
+                            _buildEmojiPredictionBar(isDark, textColor),
+                          ],
+                          const SizedBox(height: 12),
+                          TextField(
+                            controller: _searchController,
+                            focusNode: _focusNode,
+                            autofocus: true,
+                            style: TextStyle(color: textColor),
+                            onSubmitted: (val) {
+                              if (_enableEmojiPredictions &&
+                                  _currentPredictions.isNotEmpty) {
+                                final topEmoji =
+                                    _currentPredictions.first['char']!;
+                                _handleEmojiSelection(topEmoji);
                                 setState(() {
-                                  _alarms = updated;
+                                  _dismissedPredictionWord = null;
+                                  _currentPredictions = [];
                                 });
-                              },
-                              todos: _todos,
-                              onTodosChanged: (updated) {
-                                setState(() {
-                                  _todos = updated;
-                                });
-                              },
-                            )
-                          : _selectedTab == 'emojis'
+                              }
+                            },
+                            decoration: InputDecoration(
+                              hintText: _selectedTab == 'emojis'
+                                  ? 'Search emojis...'
+                                  : 'Type here to search...',
+                              hintStyle: TextStyle(
+                                color: textColor.withValues(alpha: 0.35),
+                              ),
+                              prefixIcon: Icon(
+                                Icons.search,
+                                color: Theme.of(context).colorScheme.primary,
+                              ),
+                              filled: true,
+                              fillColor: inputBg,
+                              contentPadding: const EdgeInsets.symmetric(
+                                vertical: 14,
+                              ),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: BorderSide(color: inputBorderColor),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: BorderSide(
+                                  color: Theme.of(context).colorScheme.primary
+                                      .withValues(alpha: 0.6),
+                                  width: 1.5,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                        const SizedBox(height: 16),
+                        Expanded(
+                          child: _selectedTab == 'clock'
+                              ? ClockView(
+                                  alarms: _alarms,
+                                  onAlarmsChanged: (updated) {
+                                    setState(() {
+                                      _alarms = updated;
+                                    });
+                                  },
+                                  todos: _todos,
+                                  onTodosChanged: (updated) {
+                                    setState(() {
+                                      _todos = updated;
+                                    });
+                                  },
+                                )
+                              : _selectedTab == 'emojis'
                               ? EmojiView(
                                   searchQuery: _searchQuery,
                                   recentEmojis: _recentEmojis,
@@ -1074,19 +1287,19 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
                                   },
                                   onClearHistory: _clearHistory,
                                 ),
+                        ),
+                      ],
                     ),
-                  ],
+                  ),
                 ),
               ),
             ),
           ),
-        ),
-        ),
-        _buildRingingOverlay(isDark, textColor),
-      ],
-    ),
-  );
-}
+          _buildRingingOverlay(isDark, textColor),
+        ],
+      ),
+    );
+  }
 
   String _formatOvertimeDisplay(int totalSeconds) {
     final hours = totalSeconds ~/ 3600;
@@ -1124,17 +1337,18 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
                           ? _formatOvertimeDisplay(overtimeSecs)
                           : '00:00';
                       final titleText = isAlarm ? alarm.time : overtimeStr;
-                      final labelText =
-                          isAlarm ? alarm.label : (timerLabel ?? 'Timer Finished!');
+                      final labelText = isAlarm
+                          ? alarm.label
+                          : (timerLabel ?? 'Timer Finished!');
                       final subText = isAlarm
                           ? (overtimeSecs > 0
-                              ? 'Ringing for $overtimeStr • ${alarm.repeatSummary}'
-                              : (alarm.repeatDays.isEmpty
-                                  ? 'One-time Alarm (auto-disables when stopped)'
-                                  : 'Recurring Alarm (${alarm.repeatSummary})'))
+                                ? 'Ringing for $overtimeStr • ${alarm.repeatSummary}'
+                                : (alarm.repeatDays.isEmpty
+                                      ? 'One-time Alarm (auto-disables when stopped)'
+                                      : 'Recurring Alarm (${alarm.repeatSummary})'))
                           : (overtimeSecs > 0
-                              ? 'Ringing unattended for $overtimeStr'
-                              : 'Timer Alert');
+                                ? 'Ringing unattended for $overtimeStr'
+                                : 'Timer Alert');
 
                       return Positioned.fill(
                         child: Container(
@@ -1144,12 +1358,19 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
                           ),
                           child: Center(
                             child: Container(
-                              margin: const EdgeInsets.symmetric(horizontal: 24),
+                              margin: const EdgeInsets.symmetric(
+                                horizontal: 24,
+                              ),
                               padding: const EdgeInsets.all(24),
                               decoration: BoxDecoration(
-                                color: isDark ? const Color(0xFF2C2C2C) : Colors.white,
+                                color: isDark
+                                    ? const Color(0xFF2C2C2C)
+                                    : Colors.white,
                                 borderRadius: BorderRadius.circular(20),
-                                border: Border.all(color: accentColor, width: 2),
+                                border: Border.all(
+                                  color: accentColor,
+                                  width: 2,
+                                ),
                                 boxShadow: [
                                   BoxShadow(
                                     color: accentColor.withValues(alpha: 0.4),
@@ -1164,7 +1385,9 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
                                   Container(
                                     padding: const EdgeInsets.all(16),
                                     decoration: BoxDecoration(
-                                      color: accentColor.withValues(alpha: 0.15),
+                                      color: accentColor.withValues(
+                                        alpha: 0.15,
+                                      ),
                                       shape: BoxShape.circle,
                                     ),
                                     child: Icon(
@@ -1211,14 +1434,19 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
                                         foregroundColor: Colors.white,
                                         elevation: 4,
                                         shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(12),
+                                          borderRadius: BorderRadius.circular(
+                                            12,
+                                          ),
                                         ),
                                       ),
                                       onPressed: () {
                                         AlarmService.stopRinging();
                                         setState(() {});
                                       },
-                                      icon: const Icon(Icons.alarm_off_rounded, size: 22),
+                                      icon: const Icon(
+                                        Icons.alarm_off_rounded,
+                                        size: 22,
+                                      ),
                                       label: Text(
                                         isAlarm ? 'STOP ALARM' : 'STOP TIMER',
                                         style: const TextStyle(

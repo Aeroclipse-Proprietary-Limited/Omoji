@@ -350,14 +350,17 @@ class AlarmService {
     }
   }
 
-  static void stopRinging() {
+  static void stopRinging({
+    bool resetTimer = true,
+    bool persistAlarmChanges = true,
+  }) {
     _audioLoopTimer?.cancel();
     _audioLoopTimer = null;
     _alarmRingingTimeoutTimer?.cancel();
     _alarmRingingTimeoutTimer = null;
     killAudioProcess();
     AudioDuckingService.restoreAudio();
-    TimerService.reset();
+    if (resetTimer) TimerService.reset();
 
     try {
       windowManager.setAlwaysOnTop(false);
@@ -365,7 +368,7 @@ class AlarmService {
 
     final alarm = activeRingingAlarm.value;
     if (alarm != null) {
-      if (alarm.repeatDays.isEmpty) {
+      if (persistAlarmChanges && alarm.repeatDays.isEmpty) {
         alarm.isEnabled = false;
         AppSettings.saveSettings(alarms: _alarms);
       }

@@ -17,6 +17,12 @@ class StopwatchService {
   static final ValueNotifier<List<String>> lapsNotifier = ValueNotifier([]);
 
   static Future<void> init() async {
+    _tickerTimer?.cancel();
+    isRunning = false;
+    accumulatedMs = 0;
+    startTimestampMs = null;
+    laps = [];
+
     final settings = await AppSettings.loadSettings();
     final savedIsRunning = settings['stopwatchIsRunning'] as bool? ?? false;
     final savedStartMs = settings['stopwatchStartTimestampMs'] as int?;

@@ -5,10 +5,21 @@ set -e
 cd "$(dirname "$0")/.."
 
 echo "Building Omoji release bundle..."
+<<<<<<< HEAD
 flutter build linux --release
 
 # Setup directory structure
+<<<<<<<< HEAD:scripts/build_deb.sh
 VERSION="1.2.5"
+========
+VERSION="1.2.3"
+>>>>>>>> 46c9155ed38526a29b6e5fd33fc1f66a4e4386bf:lib/scripts/build_deb.sh
+=======
+flutter build linux --release --dart-define=OMOJI_DEVELOPER_BUILD=false
+
+# Setup directory structure
+VERSION="1.2.5"
+>>>>>>> 46c9155ed38526a29b6e5fd33fc1f66a4e4386bf
 BUILD_DIR="build/debian"
 PKG_DIR="${BUILD_DIR}/omoji_${VERSION}_amd64"
 rm -rf "${PKG_DIR}"
@@ -24,7 +35,11 @@ mkdir -p "${PKG_DIR}/usr/share/icons/hicolor/scalable/apps"
 cp -r build/linux/x64/release/bundle/* "${PKG_DIR}/usr/lib/omoji/"
 mkdir -p "${PKG_DIR}/usr/lib/omoji/lib/scripts"
 mkdir -p "${PKG_DIR}/usr/lib/omoji/lib/data"
+<<<<<<< HEAD
 cp scripts/emoji_prediction_daemon.py scripts/omoji_paste.py "${PKG_DIR}/usr/lib/omoji/lib/scripts/"
+=======
+cp lib/scripts/emoji_prediction_daemon.py lib/scripts/omoji_paste.py "${PKG_DIR}/usr/lib/omoji/lib/scripts/"
+>>>>>>> 46c9155ed38526a29b6e5fd33fc1f66a4e4386bf
 cp -r lib/data/* "${PKG_DIR}/usr/lib/omoji/lib/data/"
 
 # Create launcher script
