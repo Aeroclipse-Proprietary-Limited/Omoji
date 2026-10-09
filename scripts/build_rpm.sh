@@ -5,7 +5,7 @@ set -e
 cd "$(dirname "$0")/.."
 
 echo "Building Omoji Linux release bundle..."
-flutter build linux --release
+flutter build linux --release --dart-define=OMOJI_DEVELOPER_BUILD=false
 
 # Verify rpmbuild is available
 if ! command -v rpmbuild &> /dev/null; then

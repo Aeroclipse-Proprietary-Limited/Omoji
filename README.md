@@ -17,9 +17,9 @@ Omoji opens with a keyboard shortcut (`Super + X` / `Cmd + .`) so you can search
 
 ### Prepackaged app
 
-Users can install the packaged Linux app from the [Omoji Snap Store listing](https://snapcraft.io/omoji). The store determines availability and any price shown there; the source build does not require a store purchase.
+Users can install a prepackaged Linux app from the [Omoji Snap Store listing](https://snapcraft.io/omoji) or download the `.deb` and `.rpm` packages from [GitHub Releases](https://github.com/Aeroclipse-Proprietary-Limited/Omoji/releases). The Snap Store determines availability and any price shown there. The Debian and RPM packages use the consumer feature set: Settings and Clock tools are locked. Import and export remain available without a purchase.
 
-For Debian- and Fedora-family distributions, `.deb` and `.rpm` packages can be built using the instructions below. Check [GitHub Releases](https://github.com/Aeroclipse-Proprietary-Limited/Omoji/releases) for prebuilt package downloads when they are published. GitHub release assets in this public repository are downloadable without a store purchase.
+The public source code is available for developers and contributors. Building from source provides the full, unlocked feature set and does not require a store purchase.
 
 Install a downloaded package with:
 
@@ -33,9 +33,9 @@ or:
 sudo dnf install ./omoji-1.2.5-1.x86_64.rpm
 ```
 
-### Build a non-paywalled version from source
+### Build the full developer version from source
 
-Developers and users can build and install Omoji directly from source without purchasing the store version. The repository contains no in-app purchase or paywall enforcement.
+Source builds unlock Settings and Clock tools for developers and contributors. The Linux user installer below explicitly builds this full developer version; `.deb` and `.rpm` package builds explicitly use the consumer feature set. Import and export are available in both versions.
 
 Install Flutter for your platform, then clone the public source repository:
 
@@ -54,7 +54,7 @@ Build and install for your current user without root access. The installer build
 ~/.local/bin/omoji
 ```
 
-Build installable packages:
+Build consumer-flavor packages (Settings and Clock locked; backup/import/export still available):
 
 ```bash
 ./scripts/build_deb.sh
@@ -62,6 +62,8 @@ Build installable packages:
 ```
 
 The `.deb` is written to `build/debian/`; RPM output is written under `build/rpm/RPMS/`. Building an RPM requires `rpmbuild`.
+
+Omoji's data backup includes settings, clipboard history, alarms, to-dos, timer state, and stopwatch state. Clipboard text is included. Custom alarm sound files are not copied; only their configured file path is saved.
 
 #### macOS
 

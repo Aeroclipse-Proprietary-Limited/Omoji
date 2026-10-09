@@ -5,7 +5,7 @@ set -e
 cd "$(dirname "$0")/.."
 
 echo "Building Omoji release bundle..."
-flutter build linux --release
+flutter build linux --release --dart-define=OMOJI_DEVELOPER_BUILD=false
 
 # Setup directory structure
 VERSION="1.2.5"

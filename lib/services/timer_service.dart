@@ -20,6 +20,16 @@ class TimerService {
   static final ValueNotifier<int> overtimeNotifier = ValueNotifier(0);
 
   static Future<void> init() async {
+    _periodicTimer?.cancel();
+    _overtimeTimer?.cancel();
+    durationSeconds = 300;
+    remainingSeconds = 300;
+    isRunning = false;
+    isPaused = false;
+    targetTimestampMs = null;
+    overtimeStartTimestampMs = null;
+    overtimeNotifier.value = 0;
+
     final settings = await AppSettings.loadSettings();
     durationSeconds = settings['timerDurationSeconds'] as int? ?? 300;
     final savedTargetMs = settings['timerTargetTimestampMs'] as int?;
