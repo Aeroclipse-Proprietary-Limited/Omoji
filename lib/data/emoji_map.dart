@@ -223,6 +223,7 @@ const Map<String, List<Map<String, String>>> fullEmojiData = {
     {'char': '🐦', 'name': 'bird animal flying nature'},
     {'char': '🐤', 'name': 'baby chick bird cute yellow'},
     {'char': '🦄', 'name': 'unicorn fantasy magical horse rainbow'},
+    {'char': '🐦‍🔥', 'name': 'phoenix mythical bird fire rebirth flame mythical creature'},
     {'char': '🐝', 'name': 'bee insect honey nature work'},
     {'char': '🦋', 'name': 'butterfly insect beauty transformation nature'},
     {'char': '🐌', 'name': 'snail slow animal shell'},

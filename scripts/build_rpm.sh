@@ -1,0 +1,96 @@
+#!/bin/bash
+set -e
+
+# Change directory to project root relative to script location
+cd "$(dirname "$0")/.."
+
+echo "Building Omoji Linux release bundle..."
+flutter build linux --release
+
+# Verify rpmbuild is available
+if ! command -v rpmbuild &> /dev/null; then
+    echo "Notice: rpmbuild is not installed on this machine. To compile RPM packages locally, install rpm (e.g. sudo apt install rpm)."
+    echo "Install the rpm package and rerun scripts/build_rpm.sh to build the RPM package."
+    exit 0
+fi
+
+PACKAGE_NAME="omoji"
+VERSION="1.2.5"
+BUILD_DIR="build/rpm"
+
+rm -rf "$BUILD_DIR"
+mkdir -p "$BUILD_DIR"/{BUILD,RPMS,SOURCES,SPECS,SRPMS}
+
+# Copy release bundle, scripts/data and icons into SOURCES
+mkdir -p "$BUILD_DIR/SOURCES/bundle"
+cp -r build/linux/x64/release/bundle/* "$BUILD_DIR/SOURCES/bundle/"
+mkdir -p "$BUILD_DIR/SOURCES/bundle/lib/scripts"
+mkdir -p "$BUILD_DIR/SOURCES/bundle/lib/data"
+cp lib/scripts/emoji_prediction_daemon.py lib/scripts/omoji_paste.py "$BUILD_DIR/SOURCES/bundle/lib/scripts/"
+cp -r lib/data/* "$BUILD_DIR/SOURCES/bundle/lib/data/"
+if [ -f "lib/assets/imgs/app-logo.png" ]; then
+    cp "lib/assets/imgs/app-logo.png" "$BUILD_DIR/SOURCES/omoji.png"
+fi
+
+# Create spec file
+cat << SPECEOF > "$BUILD_DIR/SPECS/omoji.spec"
+Name:           omoji
+Version:        ${VERSION}
+Release:        1%{?dist}
+Summary:        A lightweight, glassmorphic desktop emoji picker & clipboard manager
+
+License:        GPLv3
+URL:            https://github.com/Aeroclipse-Proprietary-Limited/Omoji
+
+%description
+Omoji is a standalone desktop emoji picker & clipboard history manager built natively for Linux.
+
+%install
+mkdir -p %{buildroot}/usr/lib/omoji
+mkdir -p %{buildroot}/usr/bin
+mkdir -p %{buildroot}/usr/share/applications
+mkdir -p %{buildroot}/usr/share/pixmaps
+mkdir -p %{buildroot}/usr/share/icons/hicolor/256x256/apps
+
+cp -r %{_sourcedir}/bundle/* %{buildroot}/usr/lib/omoji/
+
+if [ -f "%{_sourcedir}/omoji.png" ]; then
+    cp "%{_sourcedir}/omoji.png" %{buildroot}/usr/share/pixmaps/omoji.png
+    cp "%{_sourcedir}/omoji.png" %{buildroot}/usr/share/icons/hicolor/256x256/apps/omoji.png
+fi
+
+cat << 'INNER_EOF' > %{buildroot}/usr/share/applications/omoji.desktop
+[Desktop Entry]
+Type=Application
+Name=Omoji
+Comment=Flutter Desktop Emoji Picker & Clipboard Manager
+Exec=/usr/bin/omoji
+Icon=omoji
+Terminal=false
+Categories=Utility;
+StartupWMClass=omoji
+INNER_EOF
+
+cat << 'INNER_EOF' > %{buildroot}/usr/bin/omoji
+#!/bin/bash
+cd /usr/lib/omoji
+./omoji "\$@"
+INNER_EOF
+chmod +x %{buildroot}/usr/bin/omoji
+
+%files
+/usr/lib/omoji
+/usr/bin/omoji
+/usr/share/applications/omoji.desktop
+/usr/share/pixmaps/omoji.png
+/usr/share/icons/hicolor/256x256/apps/omoji.png
+
+%changelog
+* Fri Oct 09 2026 Aeroclipse Proprietary Limited <support@aeroclipse.com> - 1.2.5-1
+- Release 1.2.5
+SPECEOF
+
+echo "Building RPM package..."
+rpmbuild --define "_topdir $(pwd)/$BUILD_DIR" -bb "$BUILD_DIR/SPECS/omoji.spec"
+
+echo "RPM package created successfully inside $BUILD_DIR/RPMS/"
