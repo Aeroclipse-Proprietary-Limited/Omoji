@@ -2,13 +2,13 @@
 set -e
 
 # Change directory to project root relative to script location
-cd "$(dirname "$0")/../.."
+cd "$(dirname "$0")/.."
 
 echo "Building Omoji release bundle..."
 flutter build linux --release
 
 # Setup directory structure
-VERSION="1.2.1"
+VERSION="1.2.5"
 BUILD_DIR="build/debian"
 PKG_DIR="${BUILD_DIR}/omoji_${VERSION}_amd64"
 rm -rf "${PKG_DIR}"
@@ -24,7 +24,7 @@ mkdir -p "${PKG_DIR}/usr/share/icons/hicolor/scalable/apps"
 cp -r build/linux/x64/release/bundle/* "${PKG_DIR}/usr/lib/omoji/"
 mkdir -p "${PKG_DIR}/usr/lib/omoji/lib/scripts"
 mkdir -p "${PKG_DIR}/usr/lib/omoji/lib/data"
-cp -r lib/scripts/* "${PKG_DIR}/usr/lib/omoji/lib/scripts/"
+cp scripts/emoji_prediction_daemon.py scripts/omoji_paste.py "${PKG_DIR}/usr/lib/omoji/lib/scripts/"
 cp -r lib/data/* "${PKG_DIR}/usr/lib/omoji/lib/data/"
 
 # Create launcher script
@@ -71,6 +71,6 @@ Description: Acrylic glassmorphic emoji searcher and clipboard manager for Linux
 EOF
 
 echo "Building debian package..."
-dpkg-deb --build "${PKG_DIR}"
+dpkg-deb --root-owner-group --build "${PKG_DIR}"
 
 echo "Debian package created successfully: build/debian/omoji_${VERSION}_amd64.deb"

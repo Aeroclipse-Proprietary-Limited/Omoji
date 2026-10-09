@@ -2,7 +2,7 @@
 set -e
 
 # Change directory to project root relative to script location
-cd "$(dirname "$0")/../.."
+cd "$(dirname "$0")/.."
 
 echo "Building Omoji Linux release bundle..."
 flutter build linux --release
@@ -10,12 +10,12 @@ flutter build linux --release
 # Verify rpmbuild is available
 if ! command -v rpmbuild &> /dev/null; then
     echo "Notice: rpmbuild is not installed on this machine. To compile RPM packages locally, install rpm (e.g. sudo apt install rpm)."
-    echo "The RPM spec script has been prepared in lib/scripts/build_rpm.sh for Red Hat/Fedora/CI build environments."
+    echo "Install the rpm package and rerun scripts/build_rpm.sh to build the RPM package."
     exit 0
 fi
 
 PACKAGE_NAME="omoji"
-VERSION="1.2.1"
+VERSION="1.2.5"
 BUILD_DIR="build/rpm"
 
 rm -rf "$BUILD_DIR"
@@ -26,7 +26,7 @@ mkdir -p "$BUILD_DIR/SOURCES/bundle"
 cp -r build/linux/x64/release/bundle/* "$BUILD_DIR/SOURCES/bundle/"
 mkdir -p "$BUILD_DIR/SOURCES/bundle/lib/scripts"
 mkdir -p "$BUILD_DIR/SOURCES/bundle/lib/data"
-cp -r lib/scripts/* "$BUILD_DIR/SOURCES/bundle/lib/scripts/"
+cp scripts/emoji_prediction_daemon.py scripts/omoji_paste.py "$BUILD_DIR/SOURCES/bundle/lib/scripts/"
 cp -r lib/data/* "$BUILD_DIR/SOURCES/bundle/lib/data/"
 if [ -f "lib/assets/imgs/app-logo.png" ]; then
     cp "lib/assets/imgs/app-logo.png" "$BUILD_DIR/SOURCES/omoji.png"
@@ -86,8 +86,8 @@ chmod +x %{buildroot}/usr/bin/omoji
 /usr/share/icons/hicolor/256x256/apps/omoji.png
 
 %changelog
-* Wed Aug 26 2026 Aeroclipse Proprietary Limited <support@aeroclipse.com> - 1.0.5-1
-- Release 1.0.5 with red flag, green flag, pirate flag & racing flag search keywords
+* Fri Oct 09 2026 Aeroclipse Proprietary Limited <support@aeroclipse.com> - 1.2.5-1
+- Release 1.2.5
 SPECEOF
 
 echo "Building RPM package..."

@@ -1,121 +1,94 @@
 # Omoji
 
-A lightweight, glassmorphic desktop emoji picker and clipboard history manager built natively for **Linux** & **macOS** by **Aeroclipse Proprietary Limited**.
+A lightweight, glassmorphic desktop emoji picker and clipboard history manager built natively for **Linux** and **macOS** by **Aeroclipse Proprietary Limited**.
 
-Omoji is designed to pop up instantly via a keyboard shortcut (`Super + X` / `Cmd + .`), let you search and copy emojis or manage your clipboard history, and auto-inject your selection directly into your active window.
+Omoji opens with a keyboard shortcut (`Super + X` / `Cmd + .`) so you can search and copy emojis, manage clipboard history, and paste selections into the active application.
 
----
+## Features
 
-## ✨ Features
+- Clipboard history with editing, pinning, copying, and deletion.
+- Fast emoji search with color emoji rendering.
+- Search focus without an initial click.
+- Automatic typing and paste support for Linux and macOS.
+- Dark, light, and system theme options.
+- Privacy mode to pause clipboard tracking.
 
-- **Clipboard History**: Tracks copied text snippets with inline editing, pinning, copying, and deletion.
-- **Color Emoji Picker**: Fast, categorized emoji search with automatic color fallback typography.
-- **Instant Search Focus**: Typing instantly redirects input into the search bar without requiring an initial click.
-- **Auto-Injection & Auto-Paste**: Automatically types or pastes selected emojis into your active application window (Wayland `wtype` on Linux, AppleScript `Cmd+V` on macOS).
-- **Glassmorphic UI**: Premium acrylic visual aesthetic with full Dark, Light, and System theme persistence.
-- **Privacy Mode**: Toggleable privacy mode to halt clipboard tracking whenever needed.
+## Get Omoji
 
----
+### Prepackaged app
 
-## 🚀 Installation & Setup
+Users can install the packaged Linux app from the [Omoji Snap Store listing](https://snapcraft.io/omoji). The store determines availability and any price shown there; the source build does not require a store purchase.
 
-### 🐧 Linux
+For Debian- and Fedora-family distributions, `.deb` and `.rpm` packages can be built using the instructions below. Check [GitHub Releases](https://github.com/Aeroclipse-Proprietary-Limited/Omoji/releases) for prebuilt package downloads when they are published. GitHub release assets in this public repository are downloadable without a store purchase.
 
-#### 1. Debian / Ubuntu / Pop!_OS / Linux Mint (`.deb`)
-
-1. Download **`omoji_1.0.0_amd64.deb`** from **[Releases](https://github.com/Aeroclipse-Proprietary-Limited/Omoji/releases)**.
-2. Open terminal in your downloads folder and install:
-   ```bash
-   sudo apt install ./omoji_1.0.0_amd64.deb
-   ```
-
-#### 2. Fedora / Red Hat / openSUSE / RHEL (`.rpm`)
-
-1. Download **`omoji-1.0.0-1.x86_64.rpm`** from **[Releases](https://github.com/Aeroclipse-Proprietary-Limited/Omoji/releases)**.
-2. Open terminal in your downloads folder and install:
-   ```bash
-   sudo dnf install ./omoji-1.0.0-1.x86_64.rpm
-   # OR for RPM-only systems:
-   sudo rpm -i ./omoji-1.0.0-1.x86_64.rpm
-   ```
-
-#### 3. User-Level Install (No Sudo Required)
+Install a downloaded package with:
 
 ```bash
-./lib/scripts/install_user.sh
+sudo apt install ./omoji_1.2.5_amd64.deb
 ```
 
-#### 4. Custom Hotkey Setup (Linux)
-- Open **System Settings** -> **Keyboard** -> **Keyboard Shortcuts** -> **Custom Shortcuts**.
-- Add shortcut:
-  - **Name**: `Omoji`
-  - **Command**: `omoji` (or `/usr/bin/omoji`)
-- Set key combination (e.g., `Super + .`).
-
----
-
-### 🍏 macOS
-
-#### 1. Installation
-1. Download or build `omoji.app` from **[Releases](https://github.com/Aeroclipse-Proprietary-Limited/Omoji/releases)**.
-2. Move `omoji.app` into your **`/Applications`** folder.
-
-#### 2. macOS Accessibility Permission (Required for Auto-Paste)
-To allow Omoji to auto-paste emojis directly into active apps:
-1. Open **System Settings** -> **Privacy & Security** -> **Accessibility**.
-2. Enable **Omoji** in the allowed applications list.
-
-#### 3. Custom Hotkey Setup (macOS)
-- Set up a hotkey using **System Settings** -> **Keyboard** -> **Keyboard Shortcuts**, or via tools like **Raycast** / **Alfred** / **Shortcuts.app** mapped to launch `omoji.app` with `Cmd + .`.
-
----
-
-## 🛠 Building from Source
-
-### Linux (Ubuntu, Debian, Fedora, Red Hat, Arch)
+or:
 
 ```bash
-git clone git@github.com:Aeroclipse-Proprietary-Limited/Omoji.git
-cd Omoji
-flutter build linux --release
+sudo dnf install ./omoji-1.2.5-1.x86_64.rpm
 ```
 
-- **User-Level Install (No root required)**:
-  ```bash
-  ./lib/scripts/install_user.sh
-  ```
+### Build a non-paywalled version from source
 
-- **Generate `.deb` Package**:
-  ```bash
-  ./lib/scripts/build_deb.sh
-  ```
+Developers and users can build and install Omoji directly from source without purchasing the store version. The repository contains no in-app purchase or paywall enforcement.
 
-- **Generate `.rpm` Package**:
-  ```bash
-  ./lib/scripts/build_rpm.sh
-  ```
-
-### macOS
+Install Flutter for your platform, then clone the public source repository:
 
 ```bash
-git clone git@github.com:Aeroclipse-Proprietary-Limited/Omoji.git
+git clone https://github.com/Aeroclipse-Proprietary-Limited/Omoji.git
 cd Omoji
+flutter pub get
+```
+
+#### Linux
+
+Build and install for your current user without root access. The installer builds the release bundle and places the runtime helper scripts alongside it:
+
+```bash
+./scripts/install_user.sh
+~/.local/bin/omoji
+```
+
+Build installable packages:
+
+```bash
+./scripts/build_deb.sh
+./scripts/build_rpm.sh
+```
+
+The `.deb` is written to `build/debian/`; RPM output is written under `build/rpm/RPMS/`. Building an RPM requires `rpmbuild`.
+
+#### macOS
+
+```bash
 flutter build macos --release
 ```
 
----
+Move the generated `build/macos/Build/Products/Release/omoji.app` into `/Applications`. Enable Omoji under **System Settings → Privacy & Security → Accessibility** if you want to use automatic paste.
 
-## 🏛️ System Architecture & Ownership
+## Report issues and contribute
 
-Omoji is engineered under a **3-Tier Distribution System Model**:
+- **Report a bug or request a feature:** [Open a GitHub issue](https://github.com/Aeroclipse-Proprietary-Limited/Omoji/issues/new). Include your operating system, Omoji version, steps to reproduce, and any relevant error output.
+- **Contribute code or documentation:** Fork the repository, create a focused branch, make and test your change, then open a [pull request](https://github.com/Aeroclipse-Proprietary-Limited/Omoji/compare). Please describe the problem addressed and the testing performed.
+- **Email feedback:** [godlyttn@outlook.com](mailto:godlyttn@outlook.com).
 
-$$\text{Supplier (System Architect)} \longrightarrow \text{Dealer (Distributor / Reseller)} \longrightarrow \text{End User}$$
+Run the project checks before submitting changes:
 
-- **Supplier of Systems**: Developed, engineered, and maintained by **Aeroclipse Proprietary Limited**.
-- **Distribution Scope**: Designed as an enterprise and individual desktop utility platform across Linux & macOS.
+```bash
+flutter analyze
+flutter test
+```
+## Career with Aeroclipse pty ltd
 
----
+Career applications are prepared as an email to `godlyttn@outlook.com`; applicants attach their CV in their own email app. No algorithm or AI is used in the hiring process
+it is human based HR. 
 
-## 📄 License & Credits
 
-Developed and maintained by **Aeroclipse Proprietary Limited** (Supplier of Systems). Licensed under the [GPL-3.0 License](license.md).
+## License and credits
+
+Developed and maintained by **Aeroclipse Proprietary Limited**. Licensed under the [GPL-3.0 License](license.md).

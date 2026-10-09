@@ -1,8 +1,8 @@
 name: omoji
-description: "A new Flutter project."
+description: "A lightweight, glassmorphic desktop emoji picker and clipboard history manager built natively for **Linux** & **macOS** by **Aeroclipse Proprietary Limited**."
 publish_to: 'none'
 
-version: 1.2.1+13
+version: 1.2.5+17
 
 environment:
   sdk: ^3.12.2

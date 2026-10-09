@@ -1,0 +1,63 @@
+name: omoji
+title: Omoji
+base: core24
+version: '1.2.5'
+summary: Glassmorphic desktop emoji picker and clipboard manager
+description: |
+  Omoji is a lightweight, glassmorphic desktop emoji picker and clipboard history 
+  manager built natively for Linux & macOS by Aeroclipse Proprietary Limited 
+  using Flutter and C++.
+
+license: Proprietary
+contact: mailto:godlyttn@outlook.com
+website: https://github.com/aeroclipse/omoji
+source-code: https://github.com/aeroclipse/omoji
+issues: https://github.com/aeroclipse/omoji/issues
+
+grade: stable
+confinement: strict
+icon: lib/assets/imgs/app-logo.png
+
+apps:
+  omoji:
+    command: omoji
+    autostart: omoji.desktop
+    extensions: [gnome]
+    plugs:
+      - desktop
+      - desktop-legacy
+      - wayland
+      - x11
+      - network
+
+parts:
+  omoji-app:
+    plugin: flutter
+    source: .
+    flutter-target: lib/main.dart
+    build-packages:
+      - g++
+      - clang
+      - cmake
+      - ninja-build
+      - pkg-config
+      - libgtk-3-dev
+      - libkeybinder-3.0-dev
+    stage-packages:
+      - python3
+      - libkeybinder-3.0-0
+    override-build: |
+      craftctl default
+
+      mkdir -p $CRAFT_PART_INSTALL/lib/scripts
+      mkdir -p $CRAFT_PART_INSTALL/lib/data
+
+      if [ -d "$CRAFT_PART_SRC/scripts" ]; then
+        cp -r $CRAFT_PART_SRC/scripts/* $CRAFT_PART_INSTALL/lib/scripts/
+      elif [ -d "$CRAFT_PART_SRC/lib/scripts" ]; then
+        cp -r $CRAFT_PART_SRC/lib/scripts/* $CRAFT_PART_INSTALL/lib/scripts/
+      fi
+
+      if [ -d "$CRAFT_PART_SRC/lib/data" ]; then
+        cp -r $CRAFT_PART_SRC/lib/data/* $CRAFT_PART_INSTALL/lib/data/
+      fi

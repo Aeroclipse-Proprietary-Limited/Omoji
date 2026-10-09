@@ -2,7 +2,7 @@
 set -e
 
 # Change directory to project root relative to script location
-cd "$(dirname "$0")/../.."
+cd "$(dirname "$0")/.."
 
 echo "Building Omoji Linux release bundle..."
 flutter build linux --release
@@ -28,7 +28,7 @@ cp -r build/linux/x64/release/bundle/* "${INSTALL_DIR}/"
 
 mkdir -p "${INSTALL_DIR}/lib/scripts"
 mkdir -p "${INSTALL_DIR}/lib/data"
-cp -r lib/scripts/* "${INSTALL_DIR}/lib/scripts/"
+cp scripts/emoji_prediction_daemon.py scripts/omoji_paste.py "${INSTALL_DIR}/lib/scripts/"
 cp -r lib/data/* "${INSTALL_DIR}/lib/data/"
 
 echo "Creating binary executable wrapper in ${BIN_DIR}/omoji..."
