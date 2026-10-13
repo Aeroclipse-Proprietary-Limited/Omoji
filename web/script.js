@@ -1,5 +1,38 @@
+/* ─── Modal ───────────────────────────────────── */
+
+const modal   = document.getElementById("apply-modal");
+const openBtn = document.getElementById("open-apply-modal");
+const closeBtn = document.getElementById("close-apply-modal");
+
+function openModal() {
+  modal.classList.add("is-open");
+  document.body.style.overflow = "hidden";
+  closeBtn.focus();
+}
+
+function closeModal() {
+  modal.classList.remove("is-open");
+  document.body.style.overflow = "";
+  openBtn.focus();
+}
+
+openBtn.addEventListener("click", openModal);
+closeBtn.addEventListener("click", closeModal);
+
+// Close on backdrop click
+modal.addEventListener("click", (e) => {
+  if (e.target === modal) closeModal();
+});
+
+// Close on Escape
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && modal.classList.contains("is-open")) closeModal();
+});
+
+/* ─── Career Form ─────────────────────────────── */
+
 const careerForm = document.querySelector("#career-form");
-const cvInput = careerForm.elements.namedItem("cv");
+const cvInput    = careerForm.elements.namedItem("cv");
 const formStatus = document.querySelector("#form-status");
 
 careerForm.addEventListener("submit", (event) => {
@@ -19,7 +52,7 @@ careerForm.addEventListener("submit", (event) => {
     return;
   }
 
-  const fields = new FormData(careerForm);
+  const fields  = new FormData(careerForm);
   const subject = "Aeroclipse career enquiry";
   const body = [
     "Hello Aeroclipse,",
@@ -33,9 +66,25 @@ careerForm.addEventListener("submit", (event) => {
     "",
     "I will attach my CV before sending this email.",
   ].join("\n");
-  const query = new URLSearchParams({ subject, body });
 
+  const query = new URLSearchParams({ subject, body });
   formStatus.textContent =
-    "Opening your email app. Your CV is not attached automatically—please attach it before sending.";
+    "Opening your email app. Attach your CV before sending.";
   window.location.href = `mailto:godlyttn@outlook.com?${query}`;
 });
+
+/* ─── Scroll Reveal ───────────────────────────── */
+
+const revealObserver = new IntersectionObserver(
+  (entries) => {
+    entries.forEach((entry) => {
+      if (entry.isIntersecting) {
+        entry.target.classList.add("is-visible");
+        revealObserver.unobserve(entry.target);
+      }
+    });
+  },
+  { threshold: 0.12 }
+);
+
+document.querySelectorAll(".reveal").forEach((el) => revealObserver.observe(el));
