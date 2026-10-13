@@ -1,55 +1,57 @@
 # Omoji
 
-A lightweight, glassmorphic desktop emoji picker and clipboard history manager built natively for **Linux** and **macOS** by **Aeroclipse Proprietary Limited**.
+> A lightweight, glassmorphic desktop emoji picker and clipboard history manager — built natively for **Linux** and **macOS** by **Aeroclipse Proprietary Limited**.
 
-Omoji opens with a keyboard shortcut (`Super + X` / `Cmd + .`) so you can search and copy emojis, manage clipboard history, and paste selections into the active application.
+Omoji opens with a keyboard shortcut (`Super + X` on Linux / `Cmd + .` on macOS) so you can instantly search and copy emojis, manage your clipboard history, and paste selections directly into the active application — no mouse required.
+
+---
 
 ## Features
 
-- Clipboard history with editing, pinning, copying, and deletion.
-- Fast emoji search with color emoji rendering.
-- Search focus without an initial click.
-- Automatic typing and paste support for Linux and macOS.
-- Dark, light, and system theme options.
-- Privacy mode to pause clipboard tracking.
+| Feature | Description |
+|---|---|
+| 📋 Clipboard History | Edit, pin, copy, and delete clipboard entries with ease |
+| 😀 Emoji Search | Fast, full-color emoji search with instant results |
+| ⌨️ Auto-Focus | Search begins typing immediately — no initial click needed |
+| 🖱️ Auto-Paste | Automatic typing and paste support for Linux and macOS |
+| 🎨 Themes | Dark, light, and system-synced theme options |
+| 🔒 Privacy Mode | Pause clipboard tracking at any time |
+| 🔔 Alarms & Timers | Built-in alarm, timer, and stopwatch tools |
+| 📦 Backup & Import | Export and import your clipboard history, settings, and more |
+
+---
 
 ## Get Omoji
 
-### Prepackaged app
+### Prepackaged App
 
-<<<<<<< HEAD
-Users can install the packaged Linux app from the [Omoji Snap Store listing](https://snapcraft.io/omoji). The store determines availability and any price shown there; the source build does not require a store purchase.
+Install directly from the **Snap Store** or download a `.deb` / `.rpm` package from **GitHub Releases**:
 
-For Debian- and Fedora-family distributions, `.deb` and `.rpm` packages can be built using the instructions below. Check [GitHub Releases](https://github.com/Aeroclipse-Proprietary-Limited/Omoji/releases) for prebuilt package downloads when they are published. GitHub release assets in this public repository are downloadable without a store purchase.
-=======
-Users can install a prepackaged Linux app from the [Omoji Snap Store listing](https://snapcraft.io/omoji) or download the `.deb` and `.rpm` packages from [GitHub Releases](https://github.com/Aeroclipse-Proprietary-Limited/Omoji/releases). The Snap Store determines availability and any price shown there. The Debian and RPM packages use the consumer feature set: Settings and Clock tools are locked. Import and export remain available without a purchase.
+[![Get it from the Snap Store](https://snapcraft.io/static/images/badges/en/snap-store-black.svg)](https://snapcraft.io/omoji)
 
-The public source code is available for developers and contributors. Building from source provides the full, unlocked feature set and does not require a store purchase.
->>>>>>> 46c9155ed38526a29b6e5fd33fc1f66a4e4386bf
+**[GitHub Releases →](https://github.com/Aeroclipse-Proprietary-Limited/Omoji/releases)**
 
-Install a downloaded package with:
+Install a downloaded `.deb` package:
 
 ```bash
 sudo apt install ./omoji_1.2.5_amd64.deb
 ```
 
-or:
+Install a downloaded `.rpm` package:
 
 ```bash
 sudo dnf install ./omoji-1.2.5-1.x86_64.rpm
 ```
 
-<<<<<<< HEAD
-### Build a non-paywalled version from source
+> **Note:** The Snap Store determines availability and any price shown there. The `.deb` and `.rpm` packages use the consumer feature set — Settings and Clock tools are locked. Import and export remain available without a purchase.
 
-Developers and users can build and install Omoji directly from source without purchasing the store version. The repository contains no in-app purchase or paywall enforcement.
-=======
-### Build the full developer version from source
+---
 
-Source builds unlock Settings and Clock tools for developers and contributors. The Linux user installer below explicitly builds this full developer version; `.deb` and `.rpm` package builds explicitly use the consumer feature set. Import and export are available in both versions.
->>>>>>> 46c9155ed38526a29b6e5fd33fc1f66a4e4386bf
+### Build from Source (Full Developer Version)
 
-Install Flutter for your platform, then clone the public source repository:
+Building from source unlocks the complete feature set — including Settings and Clock tools — at no cost.
+
+**Prerequisites:** [Flutter](https://docs.flutter.dev/get-started/install) installed for your platform.
 
 ```bash
 git clone https://github.com/Aeroclipse-Proprietary-Limited/Omoji.git
@@ -59,72 +61,75 @@ flutter pub get
 
 #### Linux
 
-Build and install for your current user without root access. The installer builds the release bundle and places the runtime helper scripts alongside it:
+Build and install for your current user (no root required):
 
 ```bash
 ./scripts/install_user.sh
 ~/.local/bin/omoji
 ```
 
-<<<<<<< HEAD
-Build installable packages:
-=======
-Build consumer-flavor packages (Settings and Clock locked; backup/import/export still available):
->>>>>>> 46c9155ed38526a29b6e5fd33fc1f66a4e4386bf
+Build consumer-flavour installable packages (Settings and Clock locked; backup/import/export still available):
 
 ```bash
-./scripts/build_deb.sh
-./scripts/build_rpm.sh
+./scripts/build_deb.sh    # Output: build/debian/
+./scripts/build_rpm.sh    # Output: build/rpm/RPMS/  — requires rpmbuild
 ```
 
-The `.deb` is written to `build/debian/`; RPM output is written under `build/rpm/RPMS/`. Building an RPM requires `rpmbuild`.
-
-<<<<<<< HEAD
-=======
-Omoji's data backup includes settings, clipboard history, alarms, to-dos, timer state, and stopwatch state. Clipboard text is included. Custom alarm sound files are not copied; only their configured file path is saved.
-
->>>>>>> 46c9155ed38526a29b6e5fd33fc1f66a4e4386bf
 #### macOS
 
 ```bash
 flutter build macos --release
 ```
 
-Move the generated `build/macos/Build/Products/Release/omoji.app` into `/Applications`. Enable Omoji under **System Settings → Privacy & Security → Accessibility** if you want to use automatic paste.
+Move the generated `build/macos/Build/Products/Release/omoji.app` into `/Applications`. Enable Omoji under **System Settings → Privacy & Security → Accessibility** to allow automatic paste.
 
-## Report issues and contribute
+---
 
-- **Report a bug or request a feature:** [Open a GitHub issue](https://github.com/Aeroclipse-Proprietary-Limited/Omoji/issues/new). Include your operating system, Omoji version, steps to reproduce, and any relevant error output.
-- **Contribute code or documentation:** Fork the repository, create a focused branch, make and test your change, then open a [pull request](https://github.com/Aeroclipse-Proprietary-Limited/Omoji/compare). Please describe the problem addressed and the testing performed.
-- **Email feedback:** [godlyttn@outlook.com](mailto:godlyttn@outlook.com).
+## Backup & Data
 
-Run the project checks before submitting changes:
+Omoji's backup includes: settings, clipboard history, alarms, to-dos, timer state, and stopwatch state. Clipboard text is included. Custom alarm sound files are **not** copied — only their configured file path is saved.
+
+---
+
+## Report Issues & Contribute
+
+We welcome bug reports, feature requests, and contributions from the community.
+
+- **🐛 Report a bug or request a feature:** [Open a GitHub issue](https://github.com/Aeroclipse-Proprietary-Limited/Omoji/issues/new). Include your OS, Omoji version, steps to reproduce, and any relevant error output.
+- **🔧 Contribute code or documentation:** Fork the repository, create a focused branch, make and test your change, then open a [pull request](https://github.com/Aeroclipse-Proprietary-Limited/Omoji/compare). Describe the problem addressed and the testing performed.
+- **📧 Email feedback:** [godlyttn@outlook.com](mailto:godlyttn@outlook.com)
+
+Run the project checks before submitting any changes:
 
 ```bash
 flutter analyze
 flutter test
 ```
-<<<<<<< HEAD
-## Career with Aeroclipse pty ltd
 
-Career applications are prepared as an email to `godlyttn@outlook.com`; applicants attach their CV in their own email app. No algorithm or AI is used in the hiring process
-it is human based HR. 
+See [Contributing.md](Contributing.md) for full contribution guidelines.
 
-
-=======
+---
 
 ## Website (Firebase Hosting)
 
-The static marketing site lives in `web/` and is configured as the Firebase Hosting public directory. After selecting the Firebase project, deploy it from the repository root:
+The static marketing site lives in `web/` and is configured as the Firebase Hosting public directory. Deploy from the repository root:
 
 ```bash
 firebase login
 firebase deploy --project aeroclipse-bw --only hosting
 ```
 
-Career applications are prepared as an email to `godlyttn@outlook.com`; applicants attach their CV in their own email app. Update the destination in `web/script.js` if it changes.
+---
 
->>>>>>> 46c9155ed38526a29b6e5fd33fc1f66a4e4386bf
-## License and credits
+## Careers at Aeroclipse
 
-Developed and maintained by **Aeroclipse Proprietary Limited**. Licensed under the [GPL-3.0 License](license.md).
+We are a human-driven company — no algorithm or AI is used in our hiring process.
+
+Career applications are sent as an email to [godlyttn@outlook.com](mailto:godlyttn@outlook.com) with your CV attached.
+
+---
+
+## License & Credits
+
+Developed and maintained by **Aeroclipse Proprietary Limited**.  
+Licensed under the [GPL-3.0 License](license.md).

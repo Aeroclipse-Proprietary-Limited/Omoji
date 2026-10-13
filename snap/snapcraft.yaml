@@ -10,9 +10,9 @@ description: |
 
 license: Proprietary
 contact: mailto:godlyttn@outlook.com
-website: https://github.com/aeroclipse/omoji
-source-code: https://github.com/aeroclipse/omoji
-issues: https://github.com/aeroclipse/omoji/issues
+website: https://aeroclipse-bw.web.app
+source-code: https://github.com/Aeroclipse-Proprietary-Limited/Omoji
+issues: https://github.com/Aeroclipse-Proprietary-Limited/Omoji/issues
 
 grade: stable
 confinement: strict
