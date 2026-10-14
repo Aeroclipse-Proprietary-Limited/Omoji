@@ -214,7 +214,7 @@ const Map<String, List<Map<String, String>>> fullEmojiData = {
     {'char': '🐨', 'name': 'koala face animal australia eucalyptus cute'},
     {'char': '🐯', 'name': 'tiger face animal wild stripes jungle'},
     {'char': '🦁', 'name': 'lion face king animal jungle brave'},
-    {'char': '🐮', 'name': 'cow face farm animal milk'},
+    {'char': '🐮', 'name': 'cow face farm animal milk.'},
     {'char': '🐷', 'name': 'pig face farm animal cute'},
     {'char': '🐸', 'name': 'frog face animal green nature'},
     {'char': '🐵', 'name': 'monkey face animal jungle funny'},
