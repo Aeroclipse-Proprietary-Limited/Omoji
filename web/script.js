@@ -75,16 +75,54 @@ careerForm.addEventListener("submit", (event) => {
 
 /* ─── Scroll Reveal ───────────────────────────── */
 
-const revealObserver = new IntersectionObserver(
-  (entries) => {
-    entries.forEach((entry) => {
-      if (entry.isIntersecting) {
-        entry.target.classList.add("is-visible");
-        revealObserver.unobserve(entry.target);
-      }
-    });
-  },
-  { threshold: 0.12 }
-);
+const revealElements = document.querySelectorAll(".reveal");
+const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-document.querySelectorAll(".reveal").forEach((el) => revealObserver.observe(el));
+if (reduceMotion || !("IntersectionObserver" in window)) {
+  revealElements.forEach((element) => element.classList.add("is-visible"));
+} else {
+  let lastScrollY = window.scrollY;
+  let scrollingDown = true;
+
+  window.addEventListener(
+    "scroll",
+    () => {
+      scrollingDown = window.scrollY >= lastScrollY;
+      lastScrollY = window.scrollY;
+    },
+    { passive: true }
+  );
+
+  const revealObserver = new IntersectionObserver(
+    (entries) => {
+      entries.forEach((entry) => {
+        const element = entry.target;
+
+        if (entry.isIntersecting) {
+          element.dataset.revealInView = "true";
+          element.style.setProperty(
+            "--reveal-offset-y",
+            scrollingDown ? "88px" : "-88px"
+          );
+          requestAnimationFrame(() => {
+            if (element.dataset.revealInView === "true") {
+              element.classList.add("is-visible");
+            }
+          });
+        } else {
+          element.dataset.revealInView = "false";
+          if (!element.classList.contains("is-visible")) return;
+
+          element.classList.remove("is-visible");
+          element.style.setProperty(
+            "--reveal-offset-y",
+            scrollingDown ? "-88px" : "88px"
+          );
+        }
+      });
+    },
+    { threshold: 0 }
+  );
+
+  revealElements.forEach((element) => revealObserver.observe(element));
+}
