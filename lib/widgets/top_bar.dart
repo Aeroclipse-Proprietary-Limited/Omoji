@@ -14,9 +14,11 @@ class TopBar extends StatefulWidget {
   State<TopBar> createState() => _TopBarState();
 }
 
-class _TopBarState extends State<TopBar> with SingleTickerProviderStateMixin {
+class _TopBarState extends State<TopBar> with TickerProviderStateMixin {
   late final AnimationController _pulseController;
+  late final AnimationController _spinController;
   late final Animation<double> _glowBlur;
+  late final Animation<double> _spinTurns;
   bool _showVersion = false;
 
   @override
@@ -26,8 +28,16 @@ class _TopBarState extends State<TopBar> with SingleTickerProviderStateMixin {
       vsync: this,
       duration: const Duration(milliseconds: 900),
     );
+    _spinController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 550),
+    );
     _glowBlur = Tween<double>(begin: 5, end: 22).animate(
       CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
+    );
+    _spinTurns = CurvedAnimation(
+      parent: _spinController,
+      curve: Curves.easeInOut,
     );
     UpdateCheckService.updateAvailable.addListener(_handleUpdateAvailability);
     if (UpdateCheckService.updateAvailable.value) {
@@ -42,9 +52,16 @@ class _TopBarState extends State<TopBar> with SingleTickerProviderStateMixin {
     } else {
       _pulseController.stop();
       _pulseController.value = 0;
+      _spinController.stop();
+      _spinController.value = 0;
       _showVersion = false;
     }
     setState(() {});
+  }
+
+  void _toggleTitle() {
+    setState(() => _showVersion = !_showVersion);
+    _spinController.forward(from: 0);
   }
 
   @override
@@ -53,6 +70,7 @@ class _TopBarState extends State<TopBar> with SingleTickerProviderStateMixin {
       _handleUpdateAvailability,
     );
     _pulseController.dispose();
+    _spinController.dispose();
     super.dispose();
   }
 
@@ -61,9 +79,10 @@ class _TopBarState extends State<TopBar> with SingleTickerProviderStateMixin {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final textColor = isDark ? Colors.white : Colors.black87;
     final hasUpdate = UpdateCheckService.updateAvailable.value;
-    final title = hasUpdate && _showVersion
-        ? 'v${UpdateCheckService.latestVersion.value ?? omojiVersion}'
-        : 'Omoji';
+    final displayedVersion = hasUpdate
+        ? UpdateCheckService.latestVersion.value ?? omojiVersion
+        : omojiVersion;
+    final title = _showVersion ? 'v$displayedVersion' : 'Omoji';
 
     return Row(
       children: [
@@ -73,13 +92,13 @@ class _TopBarState extends State<TopBar> with SingleTickerProviderStateMixin {
             builder: (context, _) => Tooltip(
               message: hasUpdate
                   ? _showVersion
-                        ? 'Tap to show Omoji'
+                        ? 'Update available — tap to show Omoji'
                         : 'Update available — tap to show version'
-                  : 'Omoji',
+                  : _showVersion
+                  ? 'Tap to show Omoji'
+                  : 'Tap to show version',
               child: InkWell(
-                onTap: hasUpdate
-                    ? () => setState(() => _showVersion = !_showVersion)
-                    : null,
+                onTap: _toggleTitle,
                 onLongPress: hasUpdate ? () => _openReleases(context) : null,
                 borderRadius: BorderRadius.circular(6),
                 child: Padding(
@@ -87,28 +106,31 @@ class _TopBarState extends State<TopBar> with SingleTickerProviderStateMixin {
                     horizontal: 3,
                     vertical: 2,
                   ),
-                  child: Text(
-                    title,
-                    style: TextStyle(
-                      color: textColor,
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      shadows: hasUpdate
-                          ? [
-                              Shadow(
-                                color: Theme.of(
-                                  context,
-                                ).colorScheme.primary.withValues(alpha: 0.85),
-                                blurRadius: _glowBlur.value,
-                              ),
-                              Shadow(
-                                color: Theme.of(
-                                  context,
-                                ).colorScheme.primary.withValues(alpha: 0.55),
-                                blurRadius: _glowBlur.value * 1.5,
-                              ),
-                            ]
-                          : null,
+                  child: RotationTransition(
+                    turns: _spinTurns,
+                    child: Text(
+                      title,
+                      style: TextStyle(
+                        color: textColor,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        shadows: hasUpdate
+                            ? [
+                                Shadow(
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.primary.withValues(alpha: 0.85),
+                                  blurRadius: _glowBlur.value,
+                                ),
+                                Shadow(
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.primary.withValues(alpha: 0.55),
+                                  blurRadius: _glowBlur.value * 1.5,
+                                ),
+                              ]
+                            : null,
+                      ),
                     ),
                   ),
                 ),

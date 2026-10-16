@@ -522,6 +522,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           splashRadius: 20,
                           onPressed: () => _saveAndGoBack(context),
                         ),
+                        IconButton(
+                          tooltip: 'Open Omoji logs',
+                          onPressed: _showLogsDialog,
+                          icon: const Icon(Icons.article_outlined, size: 18),
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
                         const SizedBox(width: 8),
                         Text(
                           'Settings',
@@ -531,39 +537,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             fontWeight: FontWeight.bold,
                           ),
                         ),
-                        const SizedBox(width: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 3,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Theme.of(
-                              context,
-                            ).colorScheme.primary.withValues(alpha: 0.15),
-                            borderRadius: BorderRadius.circular(6),
-                            border: Border.all(
-                              color: Theme.of(
-                                context,
-                              ).colorScheme.primary.withValues(alpha: 0.4),
-                            ),
-                          ),
-                          child: Text(
-                            'v$omojiVersion beta',
-                            style: TextStyle(
-                              color: Theme.of(context).colorScheme.primary,
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
                         const Spacer(),
-                        IconButton(
-                          tooltip: 'Open Omoji logs',
-                          onPressed: _showLogsDialog,
-                          icon: const Icon(Icons.article_outlined, size: 18),
-                          color: Theme.of(context).colorScheme.primary,
-                        ),
                       ],
                     ),
                     const SizedBox(height: 8),
