@@ -1,5 +1,3 @@
-// lib/widgets/top_bar.dart
-
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -7,27 +5,82 @@ import 'package:omoji/build_config.dart';
 import 'package:omoji/services/update_check_service.dart';
 import 'package:omoji/settings.dart';
 
-class TopBar extends StatelessWidget {
+class TopBar extends StatefulWidget {
   final FocusNode searchFocusNode;
 
   const TopBar({super.key, required this.searchFocusNode});
 
   @override
+  State<TopBar> createState() => _TopBarState();
+}
+
+class _TopBarState extends State<TopBar> with SingleTickerProviderStateMixin {
+  late final AnimationController _pulseController;
+  late final Animation<double> _glowBlur;
+  bool _showVersion = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _pulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    );
+    _glowBlur = Tween<double>(begin: 5, end: 22).animate(
+      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
+    );
+    UpdateCheckService.updateAvailable.addListener(_handleUpdateAvailability);
+    if (UpdateCheckService.updateAvailable.value) {
+      _pulseController.repeat(reverse: true);
+    }
+  }
+
+  void _handleUpdateAvailability() {
+    if (!mounted) return;
+    if (UpdateCheckService.updateAvailable.value) {
+      _pulseController.repeat(reverse: true);
+    } else {
+      _pulseController.stop();
+      _pulseController.value = 0;
+      _showVersion = false;
+    }
+    setState(() {});
+  }
+
+  @override
+  void dispose() {
+    UpdateCheckService.updateAvailable.removeListener(
+      _handleUpdateAvailability,
+    );
+    _pulseController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final textColor = isDark ? Colors.white : Colors.black87;
+    final hasUpdate = UpdateCheckService.updateAvailable.value;
+    final title = hasUpdate && _showVersion
+        ? 'v${UpdateCheckService.latestVersion.value ?? omojiVersion}'
+        : 'Omoji';
 
     return Row(
       children: [
         Expanded(
-          child: ValueListenableBuilder<bool>(
-            valueListenable: UpdateCheckService.updateAvailable,
-            builder: (context, hasUpdate, _) => Tooltip(
+          child: AnimatedBuilder(
+            animation: _pulseController,
+            builder: (context, _) => Tooltip(
               message: hasUpdate
-                  ? 'Update available — open GitHub Releases'
+                  ? _showVersion
+                        ? 'Tap to show Omoji'
+                        : 'Update available — tap to show version'
                   : 'Omoji',
               child: InkWell(
-                onTap: hasUpdate ? () => _showUpdateDialog(context) : null,
+                onTap: hasUpdate
+                    ? () => setState(() => _showVersion = !_showVersion)
+                    : null,
+                onLongPress: hasUpdate ? () => _openReleases(context) : null,
                 borderRadius: BorderRadius.circular(6),
                 child: Padding(
                   padding: const EdgeInsets.symmetric(
@@ -35,7 +88,7 @@ class TopBar extends StatelessWidget {
                     vertical: 2,
                   ),
                   child: Text(
-                    'Omoji',
+                    title,
                     style: TextStyle(
                       color: textColor,
                       fontSize: 18,
@@ -46,13 +99,13 @@ class TopBar extends StatelessWidget {
                                 color: Theme.of(
                                   context,
                                 ).colorScheme.primary.withValues(alpha: 0.85),
-                                blurRadius: 14,
+                                blurRadius: _glowBlur.value,
                               ),
                               Shadow(
                                 color: Theme.of(
                                   context,
                                 ).colorScheme.primary.withValues(alpha: 0.55),
-                                blurRadius: 24,
+                                blurRadius: _glowBlur.value * 1.5,
                               ),
                             ]
                           : null,
@@ -81,34 +134,7 @@ class TopBar extends StatelessWidget {
     );
   }
 
-  Future<void> _showUpdateDialog(BuildContext context) async {
-    final version = UpdateCheckService.latestVersion.value;
-    final sources = UpdateCheckService.updateSources.value.toList()..sort();
-    final shouldOpenReleases = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Omoji update available'),
-        content: Text(
-          'A newer version${version == null ? '' : ' ($version)'} is available'
-          '${sources.isEmpty ? '' : ' from ${sources.join(' and ')}'}. '
-          'This check sends only a request for public release information; '
-          'it does not send app usage or clipboard data. GitHub and Snap Store '
-          'still receive ordinary connection metadata, such as your IP address.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Later'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('View GitHub Releases'),
-          ),
-        ],
-      ),
-    );
-    if (shouldOpenReleases != true || !context.mounted) return;
-
+  Future<void> _openReleases(BuildContext context) async {
     final command = Platform.isLinux
         ? ('xdg-open', [fullVersionUrl])
         : Platform.isMacOS

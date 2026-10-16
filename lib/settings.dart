@@ -503,46 +503,75 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
               child: Padding(
                 padding: const EdgeInsets.all(18.0),
-                child: SingleChildScrollView(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Header
-                      Row(
-                        children: [
-                          IconButton(
-                            icon: _isRegisteringHotkeys
-                                ? SizedBox(
-                                    width: 18,
-                                    height: 18,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      color: textColor,
-                                    ),
-                                  )
-                                : const Icon(Icons.arrow_back_ios_new_rounded),
+                child: Column(
+                  children: [
+                    Row(
+                      children: [
+                        IconButton(
+                          icon: _isRegisteringHotkeys
+                              ? SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: textColor,
+                                  ),
+                                )
+                              : const Icon(Icons.arrow_back_ios_new_rounded),
+                          color: textColor,
+                          splashRadius: 20,
+                          onPressed: () => _saveAndGoBack(context),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Settings',
+                          style: TextStyle(
                             color: textColor,
-                            splashRadius: 20,
-                            onPressed: () => _saveAndGoBack(context),
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
                           ),
-                          const SizedBox(width: 8),
-                          Text(
-                            'Settings',
+                        ),
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 3,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.primary.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.primary.withValues(alpha: 0.4),
+                            ),
+                          ),
+                          child: Text(
+                            'v$omojiVersion beta',
                             style: TextStyle(
-                              color: textColor,
-                              fontSize: 18,
+                              color: Theme.of(context).colorScheme.primary,
+                              fontSize: 12,
                               fontWeight: FontWeight.bold,
                             ),
                           ),
-                          IconButton(
-                            tooltip: 'Open Omoji logs',
-                            onPressed: _showLogsDialog,
-                            icon: const Icon(Icons.article_outlined, size: 18),
-                            color: Theme.of(context).colorScheme.primary,
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 20),
+                        ),
+                        const Spacer(),
+                        IconButton(
+                          tooltip: 'Open Omoji logs',
+                          onPressed: _showLogsDialog,
+                          icon: const Icon(Icons.article_outlined, size: 18),
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Expanded(
+                      child: SingleChildScrollView(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
                       _buildBackupSection(
                         textColor: textColor,
                         subtitleColor: subtitleColor,
@@ -1753,8 +1782,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           ],
                         ),
                       ),
-                    ],
-                  ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
