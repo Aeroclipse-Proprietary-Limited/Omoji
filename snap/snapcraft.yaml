@@ -1,7 +1,7 @@
 name: omoji
 title: Omoji
 base: core24
-version: '1.2.5'
+version: '1.2.6'
 summary: Glassmorphic desktop emoji picker and clipboard manager
 description: |
   Omoji is a lightweight, glassmorphic desktop emoji picker and clipboard history 

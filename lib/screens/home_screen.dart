@@ -21,6 +21,7 @@ import 'package:omoji/services/timer_service.dart';
 import 'package:omoji/widgets/clipboard_view.dart';
 import 'package:omoji/widgets/clock_view.dart';
 import 'package:omoji/widgets/emoji_view.dart';
+import 'package:omoji/widgets/full_version_prompt.dart';
 import 'package:omoji/widgets/tab_switcher.dart';
 import 'package:omoji/widgets/top_bar.dart';
 import 'package:screen_retriever/screen_retriever.dart';
@@ -177,13 +178,14 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
           }
 
           try {
-            await const MethodChannel('com.aeroclipse.omoji/window')
-                .invokeMethod('showOverlay', {
-                  'x': targetX,
-                  'y': targetY,
-                  'width': 440.0,
-                  'height': 60.0,
-                });
+            await const MethodChannel(
+              'com.aeroclipse.omoji/window',
+            ).invokeMethod('showOverlay', {
+              'x': targetX,
+              'y': targetY,
+              'width': 440.0,
+              'height': 60.0,
+            });
           } catch (e) {
             debugPrint('Error showing native GTK overlay: $e');
           }
@@ -212,8 +214,9 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
         _globalPredictionWord = "";
       });
       try {
-        await const MethodChannel('com.aeroclipse.omoji/window')
-            .invokeMethod('hideOverlay');
+        await const MethodChannel(
+          'com.aeroclipse.omoji/window',
+        ).invokeMethod('hideOverlay');
       } catch (_) {}
     }
   }
@@ -482,34 +485,17 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
   }
 
   Future<void> _showClockUpgradeDialog() async {
-    await showDialog<void>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Clock tools are premium'),
-        content: const Text(
-          'Alarms, timers, stopwatches, and to-do reminders are available in '
-          'the Omoji store version. Data import and export remain available '
-          'in this version.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Not now'),
-          ),
-          FilledButton(
-            onPressed: () async {
-              Navigator.pop(context);
-              await _openStoreListing();
-            },
-            child: const Text('View store listing'),
-          ),
-        ],
-      ),
+    final wantsFullVersion = await showFullVersionPrompt(
+      context,
+      feature: 'Clock tools',
     );
+    if (wantsFullVersion && mounted) {
+      await _openFullVersionPage();
+    }
   }
 
-  Future<void> _openStoreListing() async {
-    final uri = Uri.parse('https://snapcraft.io/omoji');
+  Future<void> _openFullVersionPage() async {
+    final uri = Uri.parse(fullVersionUrl);
     final command = Platform.isMacOS
         ? ('open', [uri.toString()])
         : Platform.isWindows
@@ -520,14 +506,14 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
       if (result.exitCode != 0 && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Could not open the store listing: ${result.stderr}'),
+            content: Text('Could not open GitHub Releases: ${result.stderr}'),
           ),
         );
       }
     } on ProcessException catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not open the store listing: $error')),
+          SnackBar(content: Text('Could not open GitHub Releases: $error')),
         );
       }
     }
@@ -724,11 +710,14 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
           .map((item) => TodoItem.fromJson(item as Map<String, dynamic>))
           .toList();
     });
-    final customSoundPath = settings['customAlarmSoundPath'] as String?;
+    final customSoundPath = isDeveloperBuild
+        ? settings['customAlarmSoundPath'] as String?
+        : null;
     final savedUseSystemDefault = settings['useSystemDefaultSound'] as bool?;
     final useSystemDefault =
-        savedUseSystemDefault ??
-        (customSoundPath == null || customSoundPath.isEmpty);
+        !isDeveloperBuild ||
+        (savedUseSystemDefault ??
+            (customSoundPath == null || customSoundPath.isEmpty));
     final loopInterval = settings['audioLoopIntervalSeconds'] as int?;
     await AlarmService.init(
       _alarms,
@@ -1230,8 +1219,9 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
                               focusedBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(12),
                                 borderSide: BorderSide(
-                                  color: Theme.of(context).colorScheme.primary
-                                      .withValues(alpha: 0.6),
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.primary.withValues(alpha: 0.6),
                                   width: 1.5,
                                 ),
                               ),

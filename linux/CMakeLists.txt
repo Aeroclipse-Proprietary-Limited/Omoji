@@ -74,6 +74,13 @@ set_target_properties(${BINARY_NAME}
 # them to the application.
 include(flutter/generated_plugins.cmake)
 
+# The current hotkey_manager_linux release triggers this warning on newer
+# Clang versions; keep the warning visible without failing the Linux build.
+if(TARGET hotkey_manager_linux_plugin)
+  target_compile_options(hotkey_manager_linux_plugin
+    PRIVATE -Wno-error=sometimes-uninitialized)
+endif()
+
 
 # === Installation ===
 # By default, "installing" just makes a relocatable bundle in the build

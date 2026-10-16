@@ -1,5 +1,6 @@
 // lib/main.dart
 
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -7,10 +8,13 @@ import 'package:omoji/screens/home_screen.dart';
 import 'package:omoji/services/app_settings.dart';
 import 'package:omoji/services/stopwatch_service.dart';
 import 'package:omoji/services/timer_service.dart';
+import 'package:omoji/services/update_check_service.dart';
 import 'package:window_manager/window_manager.dart';
 
 final ValueNotifier<ThemeMode> themeNotifier = ValueNotifier(ThemeMode.system);
-final ValueNotifier<Color> accentColorNotifier = ValueNotifier(const Color(0xFFB91C1C));
+final ValueNotifier<Color> accentColorNotifier = ValueNotifier(
+  const Color(0xFFB91C1C),
+);
 final ValueNotifier<String> dateFormatNotifier = ValueNotifier('dd/mm/yyyy');
 final ValueNotifier<String> todoDefaultViewNotifier = ValueNotifier('upcoming');
 
@@ -25,7 +29,9 @@ void main() async {
         final message = String.fromCharCodes(data).trim();
         if (message == 'SHOW_WINDOW') {
           try {
-            const MethodChannel('com.aeroclipse.omoji/window').invokeMethod('setAcceptFocus', true);
+            const MethodChannel(
+              'com.aeroclipse.omoji/window',
+            ).invokeMethod('setAcceptFocus', true);
           } catch (_) {}
           if (await windowManager.isMinimized()) {
             await windowManager.restore();
@@ -75,7 +81,8 @@ void main() async {
 
   final todoDefaultViewVal = settings['todoDefaultView'] as String?;
   const _validTodoViews = {'all', 'upcoming', 'missed', 'completed'};
-  if (todoDefaultViewVal != null && _validTodoViews.contains(todoDefaultViewVal)) {
+  if (todoDefaultViewVal != null &&
+      _validTodoViews.contains(todoDefaultViewVal)) {
     todoDefaultViewNotifier.value = todoDefaultViewVal;
   }
 
@@ -96,6 +103,7 @@ void main() async {
   });
 
   runApp(const OmojiApp());
+  unawaited(UpdateCheckService.checkIfDue());
 }
 
 class OmojiApp extends StatelessWidget {

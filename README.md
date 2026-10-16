@@ -13,9 +13,9 @@ One keyboard shortcut. Every emoji. Your full clipboard history. `Super + X` on 
 **[GitHub Releases →](https://github.com/Aeroclipse-Proprietary-Limited/Omoji/releases)**
 
 ```bash
-sudo apt install ./omoji_1.2.5_amd64.deb
+sudo apt install ./omoji_1.2.6_amd64.deb
 # or
-sudo dnf install ./omoji-1.2.5-1.x86_64.rpm
+sudo dnf install ./omoji-1.2.6-1.x86_64.rpm
 ```
 
 ---
@@ -32,6 +32,11 @@ sudo dnf install ./omoji-1.2.5-1.x86_64.rpm
 | 📦 Backup & Import | Take your data anywhere |
 
 There's more inside — explore at your own pace.
+
+Omoji checks GitHub Releases and the Snap Store once per day for public version
+information. When an update is available, the app title glows and links to
+GitHub Releases. This check does not send clipboard contents or app usage data;
+the services do receive ordinary connection metadata, such as your IP address.
 
 ---
 

@@ -10,6 +10,7 @@ import 'package:omoji/services/alarm_service.dart';
 import 'package:omoji/services/app_settings.dart';
 import 'package:omoji/services/hotkey_service.dart';
 import 'package:omoji/services/logger_service.dart';
+import 'package:omoji/widgets/full_version_prompt.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -19,8 +20,11 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  bool _showCardForm = false;
-  bool _showCryptoAddress = false;
+  static const String _payPalPaymentUrl =
+      'https://www.paypal.com/ncp/payment/ZUZA5SH4V35RE';
+  static const String _ethWalletAddress =
+      '0xfe9dd55429fc5f35f9f363aeaeba256f955b807c';
+
   String? _customAlarmSoundPath;
   bool _isPlayingTest = false;
   bool _autoPaste = true;
@@ -53,10 +57,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final settings = await AppSettings.loadSettings();
     if (!mounted) return;
     setState(() {
-      _customAlarmSoundPath = settings['customAlarmSoundPath'] as String?;
+      _customAlarmSoundPath = isDeveloperBuild
+          ? settings['customAlarmSoundPath'] as String?
+          : null;
       final savedUseSystemDefault = settings['useSystemDefaultSound'] as bool?;
       if (savedUseSystemDefault != null) {
-        _useSystemDefaultSound = savedUseSystemDefault;
+        _useSystemDefaultSound = !isDeveloperBuild || savedUseSystemDefault;
       } else {
         _useSystemDefaultSound =
             (_customAlarmSoundPath == null || _customAlarmSoundPath!.isEmpty);
@@ -140,6 +146,104 @@ class _SettingsScreenState extends State<SettingsScreen> {
         await Process.run('cmd', ['/c', 'start', '', mailtoUrl]);
       } catch (_) {}
     }
+  }
+
+  Future<void> _openPayPalPayment() async {
+    final command = Platform.isLinux
+        ? ('xdg-open', [_payPalPaymentUrl])
+        : Platform.isMacOS
+        ? ('open', [_payPalPaymentUrl])
+        : Platform.isWindows
+        ? ('rundll32', ['url.dll,FileProtocolHandler', _payPalPaymentUrl])
+        : throw UnsupportedError(
+            'PayPal payments are not supported on this platform.',
+          );
+
+    try {
+      final result = await Process.run(command.$1, command.$2);
+      if (result.exitCode != 0 && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not open PayPal: ${result.stderr}')),
+        );
+      }
+    } on ProcessException catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not open PayPal: $error')),
+        );
+      }
+    }
+  }
+
+  Future<void> _showCustomAlarmSoundUpgradeDialog() async {
+    final wantsFullVersion = await showFullVersionPrompt(
+      context,
+      feature: 'Custom alarm sounds',
+    );
+    if (wantsFullVersion && mounted) {
+      await _openFullVersionPage();
+    }
+  }
+
+  Future<void> _openFullVersionPage() async {
+    final command = Platform.isLinux
+        ? ('xdg-open', [fullVersionUrl])
+        : Platform.isMacOS
+        ? ('open', [fullVersionUrl])
+        : Platform.isWindows
+        ? ('rundll32', ['url.dll,FileProtocolHandler', fullVersionUrl])
+        : throw UnsupportedError(
+            'GitHub Releases are not supported on this platform.',
+          );
+
+    try {
+      final result = await Process.run(command.$1, command.$2);
+      if (result.exitCode != 0 && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Could not open GitHub Releases: ${result.stderr}'),
+          ),
+        );
+      }
+    } on ProcessException catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not open GitHub Releases: $error')),
+        );
+      }
+    }
+  }
+
+  Future<void> _copyEthWalletAddress() async {
+    try {
+      await Clipboard.setData(const ClipboardData(text: _ethWalletAddress));
+    } on PlatformException catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not copy ETH wallet address: $error')),
+        );
+      }
+      return;
+    }
+
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('ETH wallet address copied'),
+        content: const Text(
+          'Paste the address into Binance or another wallet to send ETH. '
+          'Select the Ethereum (ERC-20) network and verify the address before '
+          'confirming; crypto transfers cannot be reversed.',
+        ),
+        actions: [
+          FilledButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Got it'),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _saveAndGoBack(BuildContext context) async {
@@ -338,170 +442,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  Widget _buildRestrictedSettingsScreen(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textColor = isDark ? Colors.white : Colors.black87;
-    final subtitleColor = isDark
-        ? Colors.white.withValues(alpha: 0.7)
-        : Colors.black.withValues(alpha: 0.6);
-    final cardBg = isDark
-        ? Colors.white.withValues(alpha: 0.04)
-        : Colors.black.withValues(alpha: 0.03);
-    final cardBorderColor = isDark
-        ? Colors.white.withValues(alpha: 0.1)
-        : Colors.black.withValues(alpha: 0.08);
-    final primaryColor = Theme.of(context).colorScheme.primary;
-
-    return PopScope(
-      canPop: true,
-      child: Scaffold(
-        backgroundColor: Colors.transparent,
-        body: Padding(
-          padding: const EdgeInsets.all(18),
-          child: SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.arrow_back_ios_new_rounded),
-                      color: textColor,
-                      onPressed: () => Navigator.pop(context),
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Settings',
-                      style: TextStyle(
-                        color: textColor,
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Tooltip(
-                      message: 'Open Omoji logs',
-                      child: InkWell(
-                        onTap: _showLogsDialog,
-                        borderRadius: BorderRadius.circular(6),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 3,
-                          ),
-                          decoration: BoxDecoration(
-                            color: primaryColor.withValues(alpha: 0.15),
-                            borderRadius: BorderRadius.circular(6),
-                            border: Border.all(
-                              color: primaryColor.withValues(alpha: 0.4),
-                            ),
-                          ),
-                          child: Text(
-                            'v1.2.5',
-                            style: TextStyle(
-                              color: primaryColor,
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                _buildBackupSection(
-                  textColor: textColor,
-                  subtitleColor: subtitleColor,
-                  cardBg: cardBg,
-                  cardBorderColor: cardBorderColor,
-                ),
-                const SizedBox(height: 16),
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: cardBg,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: cardBorderColor),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Icon(Icons.lock_outline_rounded, color: primaryColor),
-                          const SizedBox(width: 8),
-                          Text(
-                            'Premium features',
-                            style: TextStyle(
-                              color: textColor,
-                              fontSize: 15,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Settings and Clock tools (alarms, timers, stopwatches, '
-                        'and to-do reminders) are available in the Omoji store '
-                        'version. Import and export are available here without '
-                        'a purchase.',
-                        style: TextStyle(color: subtitleColor, fontSize: 12),
-                      ),
-                      const SizedBox(height: 12),
-                      FilledButton.icon(
-                        onPressed: () async {
-                          final command = Platform.isMacOS
-                              ? 'open'
-                              : 'xdg-open';
-                          final messenger = ScaffoldMessenger.of(context);
-                          try {
-                            final result = await Process.run(command, [
-                              'https://snapcraft.io/omoji',
-                            ]);
-                            if (result.exitCode != 0 && context.mounted) {
-                              messenger.showSnackBar(
-                                SnackBar(
-                                  content: Text(
-                                    'Could not open store listing: ${result.stderr}',
-                                  ),
-                                ),
-                              );
-                            }
-                          } on ProcessException catch (error) {
-                            if (context.mounted) {
-                              messenger.showSnackBar(
-                                SnackBar(
-                                  content: Text(
-                                    'Could not open store listing: $error',
-                                  ),
-                                ),
-                              );
-                            }
-                          }
-                        },
-                        icon: const Icon(Icons.open_in_new_rounded, size: 17),
-                        label: const Text('View store listing'),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
-    if (!isDeveloperBuild) {
-      return _buildRestrictedSettingsScreen(context);
-    }
-
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final textColor = isDark ? Colors.white : Colors.black87;
     final subtitleColor = isDark
@@ -592,38 +534,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               fontWeight: FontWeight.bold,
                             ),
                           ),
-                          const SizedBox(width: 8),
-                          Tooltip(
-                            message: 'Open Omoji logs',
-                            child: InkWell(
-                              onTap: _showLogsDialog,
-                              borderRadius: BorderRadius.circular(6),
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                  vertical: 3,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: Theme.of(context).colorScheme.primary
-                                      .withValues(alpha: 0.15),
-                                  borderRadius: BorderRadius.circular(6),
-                                  border: Border.all(
-                                    color: Theme.of(context).colorScheme.primary
-                                        .withValues(alpha: 0.4),
-                                  ),
-                                ),
-                                child: Text(
-                                  'v1.2.5',
-                                  style: TextStyle(
-                                    color: Theme.of(context)
-                                        .colorScheme
-                                        .primary,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ),
-                            ),
+                          IconButton(
+                            tooltip: 'Open Omoji logs',
+                            onPressed: _showLogsDialog,
+                            icon: const Icon(Icons.article_outlined, size: 18),
+                            color: Theme.of(context).colorScheme.primary,
                           ),
                         ],
                       ),
@@ -920,9 +835,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                       ),
                                       decoration: BoxDecoration(
                                         color: isActive
-                                            ? Theme.of(context)
-                                                  .colorScheme
-                                                  .primary
+                                            ? Theme.of(
+                                                context,
+                                              ).colorScheme.primary
                                             : Colors.transparent,
                                         borderRadius: BorderRadius.circular(8),
                                       ),
@@ -1029,9 +944,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                 children: [
                                   Icon(
                                     Icons.bolt_rounded,
-                                    color: Theme.of(context)
-                                        .colorScheme
-                                        .primary,
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.primary,
                                     size: 18,
                                   ),
                                   const SizedBox(width: 10),
@@ -1061,9 +976,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                     child: Text(
                                       'Primary Default',
                                       style: TextStyle(
-                                        color: Theme.of(context)
-                                            .colorScheme
-                                            .primary,
+                                        color: Theme.of(
+                                          context,
+                                        ).colorScheme.primary,
                                         fontSize: 10,
                                         fontWeight: FontWeight.bold,
                                       ),
@@ -1097,9 +1012,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                       hintText: 'e.g. Ctrl + Alt + O',
                                       prefixIcon: Icon(
                                         Icons.bolt_outlined,
-                                        color: Theme.of(context)
-                                            .colorScheme
-                                            .primary,
+                                        color: Theme.of(
+                                          context,
+                                        ).colorScheme.primary,
                                         size: 18,
                                       ),
                                       isDense: true,
@@ -1122,9 +1037,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                         .colorScheme
                                         .primary
                                         .withValues(alpha: 0.2),
-                                    foregroundColor: Theme.of(context)
-                                        .colorScheme
-                                        .primary,
+                                    foregroundColor: Theme.of(
+                                      context,
+                                    ).colorScheme.primary,
                                     elevation: 0,
                                     padding: const EdgeInsets.symmetric(
                                       horizontal: 10,
@@ -1216,9 +1131,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                 ),
                                 Switch(
                                   value: _autoPaste,
-                                  activeThumbColor: Theme.of(context)
-                                      .colorScheme
-                                      .primary,
+                                  activeThumbColor: Theme.of(
+                                    context,
+                                  ).colorScheme.primary,
                                   onChanged: (val) async {
                                     setState(() {
                                       _autoPaste = val;
@@ -1265,9 +1180,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                 ),
                                 Switch(
                                   value: _ignoreEmojisInClipboard,
-                                  activeThumbColor: Theme.of(context)
-                                      .colorScheme
-                                      .primary,
+                                  activeThumbColor: Theme.of(
+                                    context,
+                                  ).colorScheme.primary,
                                   onChanged: (val) async {
                                     setState(() {
                                       _ignoreEmojisInClipboard = val;
@@ -1314,9 +1229,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                 ),
                                 Switch(
                                   value: _enableEmojiPredictions,
-                                  activeThumbColor: Theme.of(context)
-                                      .colorScheme
-                                      .primary,
+                                  activeThumbColor: Theme.of(
+                                    context,
+                                  ).colorScheme.primary,
                                   onChanged: (val) async {
                                     setState(() {
                                       _enableEmojiPredictions = val;
@@ -1378,9 +1293,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               ),
                               value: true,
                               groupValue: _useSystemDefaultSound,
-                              activeColor: Theme.of(context)
-                                  .colorScheme
-                                  .primary,
+                              activeColor: Theme.of(
+                                context,
+                              ).colorScheme.primary,
                               onChanged: (val) async {
                                 if (val != null) {
                                   setState(() {
@@ -1398,20 +1313,36 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             RadioListTile<bool>(
                               dense: true,
                               contentPadding: EdgeInsets.zero,
-                              title: Text(
-                                'Custom Audio File (MP3 / WAV / OGG)',
-                                style: TextStyle(
-                                  color: textColor,
-                                  fontSize: 13,
-                                ),
+                              title: Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      'Custom Audio File (MP3 / WAV / OGG)',
+                                      style: TextStyle(
+                                        color: textColor,
+                                        fontSize: 13,
+                                      ),
+                                    ),
+                                  ),
+                                  if (!isDeveloperBuild)
+                                    Icon(
+                                      Icons.lock_outline_rounded,
+                                      size: 16,
+                                      color: subtitleColor,
+                                    ),
+                                ],
                               ),
                               value: false,
                               groupValue: _useSystemDefaultSound,
-                              activeColor: Theme.of(context)
-                                  .colorScheme
-                                  .primary,
+                              activeColor: Theme.of(
+                                context,
+                              ).colorScheme.primary,
                               onChanged: (val) async {
                                 if (val != null) {
+                                  if (val == false && !isDeveloperBuild) {
+                                    await _showCustomAlarmSoundUpgradeDialog();
+                                    return;
+                                  }
                                   setState(() {
                                     _useSystemDefaultSound = val;
                                   });
@@ -1430,9 +1361,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                 children: [
                                   Icon(
                                     Icons.music_note_rounded,
-                                    color: Theme.of(context)
-                                        .colorScheme
-                                        .primary,
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.primary,
                                     size: 20,
                                   ),
                                   const SizedBox(width: 10),
@@ -1469,9 +1400,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                 children: [
                                   ElevatedButton.icon(
                                     style: ElevatedButton.styleFrom(
-                                      backgroundColor: Theme.of(context)
-                                          .colorScheme
-                                          .primary,
+                                      backgroundColor: Theme.of(
+                                        context,
+                                      ).colorScheme.primary,
                                       foregroundColor: Colors.white,
                                       visualDensity: VisualDensity.compact,
                                     ),
@@ -1498,15 +1429,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                     style: OutlinedButton.styleFrom(
                                       foregroundColor: _isPlayingTest
                                           ? Colors.redAccent
-                                          : Theme.of(context)
-                                                .colorScheme
-                                                .primary,
+                                          : Theme.of(
+                                              context,
+                                            ).colorScheme.primary,
                                       side: BorderSide(
                                         color: _isPlayingTest
                                             ? Colors.redAccent
-                                            : Theme.of(context)
-                                                  .colorScheme
-                                                  .primary,
+                                            : Theme.of(
+                                                context,
+                                              ).colorScheme.primary,
                                       ),
                                       visualDensity: VisualDensity.compact,
                                     ),
@@ -1614,9 +1545,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                       _audioLoopIntervalSeconds,
                                     ),
                                     style: TextStyle(
-                                      color: Theme.of(context)
-                                          .colorScheme
-                                          .primary,
+                                      color: Theme.of(
+                                        context,
+                                      ).colorScheme.primary,
                                       fontSize: 13,
                                       fontWeight: FontWeight.bold,
                                     ),
@@ -1633,9 +1564,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               min: 10.0,
                               max: 93.0,
                               divisions: 83,
-                              activeColor: Theme.of(context)
-                                  .colorScheme
-                                  .primary,
+                              activeColor: Theme.of(
+                                context,
+                              ).colorScheme.primary,
                               label: _formatIntervalLabel(
                                 _audioLoopIntervalSeconds,
                               ),
@@ -1685,8 +1616,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       InkWell(
                         onTap: _openFeedbackEmail,
                         borderRadius: BorderRadius.circular(12),
-                        splashColor: Theme.of(context).colorScheme.primary
-                            .withValues(alpha: 0.1),
+                        splashColor: Theme.of(
+                          context,
+                        ).colorScheme.primary.withValues(alpha: 0.1),
                         highlightColor: Colors.transparent,
                         child: Container(
                           width: double.infinity,
@@ -1703,10 +1635,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             children: [
                               CircleAvatar(
                                 radius: 22,
-                                backgroundColor: Theme.of(context)
-                                    .colorScheme
-                                    .primary
-                                    .withValues(alpha: 0.2),
+                                backgroundColor: Theme.of(
+                                  context,
+                                ).colorScheme.primary.withValues(alpha: 0.2),
                                 backgroundImage: const AssetImage(
                                   'lib/assets/imgs/acc pic.jpg',
                                 ),
@@ -1735,9 +1666,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                   Text(
                                     'Aeroclipse Pty Ltd',
                                     style: TextStyle(
-                                      color: Theme.of(context)
-                                          .colorScheme
-                                          .primary,
+                                      color: Theme.of(
+                                        context,
+                                      ).colorScheme.primary,
                                       fontSize: 12,
                                       fontWeight: FontWeight.bold,
                                     ),
@@ -1797,26 +1728,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                 Expanded(
                                   child: _buildDonationButton(
                                     context: context,
-                                    label: 'card',
-                                    icon: Icons.credit_card_rounded,
-                                    color: Theme.of(context)
-                                        .colorScheme
-                                        .primary,
+                                    label: 'PayPal',
+                                    icon: Icons.open_in_new_rounded,
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.primary,
                                     isActive: false,
-                                    onTap: () {
-                                      setState(() {
-                                        _showCardForm = false;
-                                      });
-                                      ScaffoldMessenger.of(context)
-                                          .showSnackBar(
-                                            const SnackBar(
-                                              content: Text(
-                                                'Credit card payments are disabled for security reasons. Please use ETH instead!',
-                                              ),
-                                              duration: Duration(seconds: 3),
-                                            ),
-                                          );
-                                    },
+                                    onTap: _openPayPalPayment,
                                   ),
                                 ),
                                 const SizedBox(width: 12),
@@ -1826,138 +1744,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                     label: 'eth',
                                     icon: Icons.currency_bitcoin_rounded,
                                     color: Colors.amber[700]!,
-                                    isActive: _showCryptoAddress,
-                                    onTap: () {
-                                      setState(() {
-                                        _showCryptoAddress =
-                                            !_showCryptoAddress;
-                                        _showCardForm = false;
-                                      });
-                                    },
+                                    isActive: false,
+                                    onTap: _copyEthWalletAddress,
                                   ),
                                 ),
                               ],
                             ),
-                            if (_showCryptoAddress) ...[
-                              const SizedBox(height: 16),
-                              Divider(
-                                color: isDark ? Colors.white10 : Colors.black12,
-                              ),
-                              const SizedBox(height: 12),
-                              Container(
-                                padding: const EdgeInsets.all(12),
-                                decoration: BoxDecoration(
-                                  color: isDark
-                                      ? Colors.black.withValues(alpha: 0.3)
-                                      : Colors.white.withValues(alpha: 0.6),
-                                  borderRadius: BorderRadius.circular(10),
-                                  border: Border.all(color: cardBorderColor),
-                                ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Row(
-                                      children: [
-                                        Icon(
-                                          Icons.account_balance_wallet_rounded,
-                                          color: Colors.amber[700],
-                                          size: 16,
-                                        ),
-                                        const SizedBox(width: 6),
-                                        Text(
-                                          'ETH Wallet Address',
-                                          style: TextStyle(
-                                            fontSize: 11,
-                                            fontWeight: FontWeight.bold,
-                                            color: textColor.withValues(
-                                              alpha: 0.8,
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 8),
-                                    SelectableText(
-                                      '0xfe9dd55429fc5f35f9f363aeaeba256f955b807c',
-                                      style: TextStyle(
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.w600,
-                                        fontFamily: 'monospace',
-                                        color: Theme.of(context)
-                                            .colorScheme
-                                            .primary,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 8),
-                                    Align(
-                                      alignment: Alignment.centerRight,
-                                      child: InkWell(
-                                        borderRadius: BorderRadius.circular(6),
-                                        onTap: () {
-                                          Clipboard.setData(
-                                            const ClipboardData(
-                                              text: '0xfe9dd55429fc5f35f9f363aeaeba256f955b807c',
-                                            ),
-                                          );
-                                          ScaffoldMessenger.of(
-                                            context,
-                                          ).showSnackBar(
-                                            const SnackBar(
-                                              content: Text(
-                                                'Wallet address copied to clipboard!',
-                                              ),
-                                              duration: Duration(seconds: 2),
-                                            ),
-                                          );
-                                        },
-                                        child: Padding(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 8,
-                                            vertical: 4,
-                                          ),
-                                          child: Row(
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              Icon(
-                                                Icons.copy_rounded,
-                                                size: 13,
-                                                color: Theme.of(context)
-                                                    .colorScheme
-                                                    .primary,
-                                              ),
-                                              const SizedBox(width: 4),
-                                              Text(
-                                                'Copy Address',
-                                                style: TextStyle(
-                                                  fontSize: 11,
-                                                  fontWeight: FontWeight.bold,
-                                                  color: Theme.of(context)
-                                                      .colorScheme
-                                                      .primary,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                            if (_showCardForm) ...[
-                              const SizedBox(height: 20),
-                              Divider(
-                                color: isDark ? Colors.white10 : Colors.black12,
-                              ),
-                              const SizedBox(height: 12),
-                              _buildCardForm(
-                                context,
-                                textColor,
-                                cardBg,
-                                cardBorderColor,
-                              ),
-                            ],
                           ],
                         ),
                       ),
@@ -2059,177 +1851,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ],
         ),
       ),
-    );
-  }
-
-  Widget _buildCardForm(
-    BuildContext context,
-    Color textColor,
-    Color cardBg,
-    Color cardBorderColor,
-  ) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Card Information',
-          style: TextStyle(
-            color: textColor,
-            fontSize: 13,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        const SizedBox(height: 12),
-        // Card Number
-        _buildTextField(
-          context: context,
-          hintText: '1234 5678 1234 5678',
-          labelText: 'Card Number',
-          icon: Icons.credit_card,
-          keyboardType: TextInputType.number,
-        ),
-        const SizedBox(height: 12),
-        // Expiry & CVV Row
-        Row(
-          children: [
-            Expanded(
-              child: _buildTextField(
-                context: context,
-                hintText: 'MM/YY',
-                labelText: 'Expiry Date',
-                icon: Icons.calendar_month,
-                keyboardType: TextInputType.datetime,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _buildTextField(
-                context: context,
-                hintText: '123',
-                labelText: 'CVV',
-                icon: Icons.lock_outline,
-                keyboardType: TextInputType.number,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        // Name
-        _buildTextField(
-          context: context,
-          hintText: 'John Doe',
-          labelText: 'Cardholder Name',
-          icon: Icons.person_outline,
-          keyboardType: TextInputType.name,
-        ),
-        const SizedBox(height: 18),
-        // Submit Button
-        SizedBox(
-          width: double.infinity,
-          child: ElevatedButton(
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Row(
-                    children: [
-                      Icon(
-                        Icons.check_circle_rounded,
-                        color: Colors.tealAccent,
-                      ),
-                      SizedBox(width: 8),
-                      Text('Thank you! Donation successful.'),
-                    ],
-                  ),
-                  backgroundColor: Color(0xFF1E3A2F),
-                  duration: Duration(seconds: 3),
-                ),
-              );
-              setState(() {
-                _showCardForm = false;
-              });
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Theme.of(context).colorScheme.primary,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(vertical: 14),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-              ),
-              elevation: 0,
-            ),
-            child: const Text(
-              'Donate \$5.00',
-              style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildTextField({
-    required BuildContext context,
-    required String hintText,
-    required String labelText,
-    required IconData icon,
-    required TextInputType keyboardType,
-  }) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textColor = isDark ? Colors.white : Colors.black87;
-    final inputBg = isDark
-        ? Colors.white.withValues(alpha: 0.04)
-        : Colors.black.withValues(alpha: 0.03);
-    final border = isDark
-        ? Colors.white.withValues(alpha: 0.08)
-        : Colors.black.withValues(alpha: 0.08);
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          labelText,
-          style: TextStyle(
-            color: isDark ? Colors.white70 : Colors.black87,
-            fontSize: 11,
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-        const SizedBox(height: 4),
-        TextField(
-          keyboardType: keyboardType,
-          style: TextStyle(color: textColor, fontSize: 13),
-          decoration: InputDecoration(
-            hintText: hintText,
-            hintStyle: TextStyle(
-              color: textColor.withValues(alpha: 0.35),
-              fontSize: 13,
-            ),
-            prefixIcon: Icon(
-              icon,
-              color: Theme.of(context).colorScheme.primary,
-              size: 16,
-            ),
-            filled: true,
-            fillColor: inputBg,
-            contentPadding: const EdgeInsets.symmetric(
-              vertical: 10,
-              horizontal: 12,
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(10),
-              borderSide: BorderSide(color: border),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(10),
-              borderSide: BorderSide(
-                color: Theme.of(context).colorScheme.primary
-                    .withValues(alpha: 0.6),
-                width: 1.5,
-              ),
-            ),
-          ),
-        ),
-      ],
     );
   }
 
