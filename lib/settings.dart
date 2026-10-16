@@ -522,13 +522,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           splashRadius: 20,
                           onPressed: () => _saveAndGoBack(context),
                         ),
-                        IconButton(
-                          tooltip: 'Open Omoji logs',
-                          onPressed: _showLogsDialog,
-                          icon: const Icon(Icons.article_outlined, size: 18),
-                          color: Theme.of(context).colorScheme.primary,
-                        ),
-                        const SizedBox(width: 8),
                         Text(
                           'Settings',
                           style: TextStyle(
@@ -536,6 +529,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             fontSize: 18,
                             fontWeight: FontWeight.bold,
                           ),
+                        ),
+                        IconButton(
+                          tooltip: 'Open Omoji logs',
+                          onPressed: _showLogsDialog,
+                          icon: const Icon(Icons.article_outlined, size: 18),
+                          color: Theme.of(context).colorScheme.primary,
                         ),
                         const Spacer(),
                       ],
