@@ -6,7 +6,7 @@ import 'package:omoji/services/logger_service.dart';
 
 class AudioDuckingService {
   static bool _isDucked = false;
-  static Map<int, String> _previousSinkInputVolumes = {};
+  static final Map<int, String> _previousSinkInputVolumes = {};
 
   static Future<void> duckAudio({bool enabled = true}) async {
     if (!enabled || _isDucked || !Platform.isLinux) return;

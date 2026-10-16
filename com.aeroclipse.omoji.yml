@@ -1,0 +1,31 @@
+app-id: com.aeroclipse.omoji
+runtime: org.gnome.Platform
+runtime-version: "48"
+sdk: org.gnome.Sdk
+command: omoji
+finish-args:
+  # Window management & Display rendering
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --share=ipc
+  - --device=dri
+  
+  # Desktop integration permissions
+  - --system-talk-name=org.freedesktop.ScreenSaver
+  - --talk-name=org.freedesktop.Notifications
+
+modules:
+  - name: omoji
+    buildsystem: simple
+    build-commands:
+      # Build Flutter for Linux in release mode offline
+      - flutter build linux --release --offline --no-pub
+      
+      # Install the compiled binary into the Flatpak bin directory
+      - install -Dm755 build/linux/x64/release/bundle/omoji /app/bin/omoji
+      
+      # Copy data files (assets, ICUs, flutter_assets)
+      - cp -r build/linux/x64/release/bundle/data /app/share/omoji/
+    sources:
+      - type: dir
+        path: .

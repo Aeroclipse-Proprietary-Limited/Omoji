@@ -411,7 +411,7 @@ class _ClockViewState extends State<ClockView> {
                     ),
                     const SizedBox(height: 6),
                     DropdownButtonFormField<String>(
-                      value: selectedRecurrence,
+                      initialValue: selectedRecurrence,
                       dropdownColor: isDark ? const Color(0xFF2C2C2C) : Colors.white,
                       style: TextStyle(color: textColor, fontSize: 13),
                       decoration: const InputDecoration(

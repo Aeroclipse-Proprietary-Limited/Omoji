@@ -1019,8 +1019,9 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
                         ValueListenableBuilder<AlarmItem?>(
                           valueListenable: AlarmService.activeRingingAlarm,
                           builder: (context, activeAlarm, _) {
-                            if (activeAlarm == null)
+                            if (activeAlarm == null) {
                               return const SizedBox.shrink();
+                            }
                             return Container(
                               margin: const EdgeInsets.only(top: 8, bottom: 4),
                               padding: const EdgeInsets.symmetric(
@@ -1084,8 +1085,9 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
                         ValueListenableBuilder<String?>(
                           valueListenable: AlarmService.silencedAlarmNotice,
                           builder: (context, noticeText, _) {
-                            if (noticeText == null || noticeText.isEmpty)
+                            if (noticeText == null || noticeText.isEmpty) {
                               return const SizedBox.shrink();
+                            }
                             return Container(
                               margin: const EdgeInsets.only(top: 8, bottom: 4),
                               padding: const EdgeInsets.symmetric(

@@ -80,9 +80,9 @@ void main() async {
   }
 
   final todoDefaultViewVal = settings['todoDefaultView'] as String?;
-  const _validTodoViews = {'all', 'upcoming', 'missed', 'completed'};
+  const validTodoViews = {'all', 'upcoming', 'missed', 'completed'};
   if (todoDefaultViewVal != null &&
-      _validTodoViews.contains(todoDefaultViewVal)) {
+      validTodoViews.contains(todoDefaultViewVal)) {
     todoDefaultViewNotifier.value = todoDefaultViewVal;
   }
 
