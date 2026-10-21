@@ -17,6 +17,7 @@ class ClipboardView extends StatelessWidget {
   final ValueChanged<ClipboardItem> onDeleteItem;
   final ValueChanged<bool> onTogglePrivateMode;
   final VoidCallback onClearHistory;
+  final VoidCallback? onStartChat;
 
   const ClipboardView({
     super.key,
@@ -33,6 +34,7 @@ class ClipboardView extends StatelessWidget {
     required this.onDeleteItem,
     required this.onTogglePrivateMode,
     required this.onClearHistory,
+    this.onStartChat,
   });
 
   @override
@@ -103,7 +105,8 @@ class ClipboardView extends StatelessWidget {
                                         isDense: true,
                                         contentPadding: EdgeInsets.zero,
                                       ),
-                                      onSubmitted: (val) => onSaveEdit(index, val),
+                                      onSubmitted: (val) =>
+                                          onSaveEdit(index, val),
                                     )
                                   : InkWell(
                                       onTap: () => onSelectText(item.text),
@@ -162,6 +165,14 @@ class ClipboardView extends StatelessWidget {
                   },
                 ),
         ),
+        if (items.isEmpty && searchQuery.isNotEmpty && onStartChat != null) ...[
+          const SizedBox(height: 8),
+          OutlinedButton.icon(
+            onPressed: onStartChat,
+            icon: const Icon(Icons.auto_awesome_rounded, size: 17),
+            label: const Text('Chat with Omoji instead'),
+          ),
+        ],
         const SizedBox(height: 12),
         Divider(color: isDark ? Colors.white10 : Colors.black12),
         ListTile(
@@ -183,7 +194,9 @@ class ClipboardView extends StatelessWidget {
           ),
           trailing: Switch(
             value: privateMode,
-            activeTrackColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.5),
+            activeTrackColor: Theme.of(
+              context,
+            ).colorScheme.primary.withValues(alpha: 0.5),
             activeThumbColor: Theme.of(context).colorScheme.primary,
             onChanged: onTogglePrivateMode,
           ),

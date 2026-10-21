@@ -6,9 +6,11 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:file_selector/file_selector.dart';
 import 'package:omoji/build_config.dart';
 import 'package:omoji/data/emoji_map.dart';
 import 'package:omoji/models/alarm_item.dart';
+import 'package:omoji/models/chat_message.dart';
 import 'package:omoji/models/clipboard_item.dart';
 import 'package:omoji/models/todo_item.dart';
 import 'package:omoji/main.dart';
@@ -19,6 +21,7 @@ import 'package:omoji/services/hotkey_service.dart';
 import 'package:omoji/services/stopwatch_service.dart';
 import 'package:omoji/services/timer_service.dart';
 import 'package:omoji/widgets/clipboard_view.dart';
+import 'package:omoji/widgets/clipboard_chat_view.dart';
 import 'package:omoji/widgets/clock_view.dart';
 import 'package:omoji/widgets/emoji_view.dart';
 import 'package:omoji/widgets/full_version_prompt.dart';
@@ -35,6 +38,10 @@ class OmojiHomeScreen extends StatefulWidget {
 }
 
 class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
+  static const MethodChannel _windowChannel = MethodChannel(
+    'com.aeroclipse.omoji/window',
+  );
+
   final TextEditingController _searchController = TextEditingController();
   late final FocusNode _focusNode;
   final FocusNode _keyboardFocusNode = FocusNode();
@@ -65,14 +72,20 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
   List<AlarmItem> _alarms = [];
   List<TodoItem> _todos = [];
   String _selectedTab = 'clipboard';
+  bool _isChatMode = false;
+  String _chatInitialPrompt = '';
+  final List<ChatMessage> _chatMessages = [];
   String? _lastClipboardText;
   Timer? _clipboardTimer;
+  bool _isCheckingClipboard = false;
+  bool _clipboardCheckPending = false;
   int? _editingIndex;
   final TextEditingController _editController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
+    _windowChannel.setMethodCallHandler(_handleNativeMethodCall);
     windowManager.addListener(this);
     AppSettings.dataImportRevision.addListener(_handleImportedData);
 
@@ -446,6 +459,7 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
 
   @override
   void dispose() {
+    _windowChannel.setMethodCallHandler(null);
     windowManager.removeListener(this);
     AppSettings.dataImportRevision.removeListener(_handleImportedData);
     _searchController.dispose();
@@ -491,6 +505,59 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
     );
     if (wantsFullVersion && mounted) {
       await _openFullVersionPage();
+    }
+  }
+
+  Future<void> _startClipboardChat() async {
+    if (!isDeveloperBuild) {
+      final wantsFullVersion = await showFullVersionPrompt(
+        context,
+        feature: 'Omoji Chat',
+      );
+      if (wantsFullVersion && mounted) {
+        await _openFullVersionPage();
+      }
+      return;
+    }
+
+    setState(() {
+      _chatInitialPrompt = _chatMessages.isEmpty
+          ? _searchController.text.trim()
+          : '';
+      _isChatMode = true;
+    });
+  }
+
+  Future<void> _exportChat() async {
+    if (_chatMessages.isEmpty) return;
+    try {
+      final location = await getSaveLocation(
+        suggestedName: 'omoji-chat.txt',
+        acceptedTypeGroups: const [
+          XTypeGroup(label: 'Text file', extensions: ['txt']),
+        ],
+      );
+      if (location == null) return;
+
+      final contents = _chatMessages
+          .map(
+            (message) =>
+                '${message.role == ChatRole.user ? 'You' : 'Omoji'}:\n'
+                '${message.text}',
+          )
+          .join('\n\n');
+      await File(location.path).writeAsString(contents, flush: true);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Chat exported to ${location.path}')),
+        );
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not export chat: $error')),
+        );
+      }
     }
   }
 
@@ -743,8 +810,19 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
     });
   }
 
+  Future<void> _handleNativeMethodCall(MethodCall call) async {
+    if (call.method == 'clipboardChanged') {
+      await _checkClipboard();
+    }
+  }
+
   Future<void> _checkClipboard() async {
     if (_privateMode) return;
+    if (_isCheckingClipboard) {
+      _clipboardCheckPending = true;
+      return;
+    }
+    _isCheckingClipboard = true;
     try {
       final data = await Clipboard.getData(Clipboard.kTextPlain);
       if (data != null && data.text != null && data.text!.isNotEmpty) {
@@ -784,6 +862,12 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
       }
     } catch (e) {
       debugPrint('Error checking clipboard: $e');
+    } finally {
+      _isCheckingClipboard = false;
+      if (_clipboardCheckPending) {
+        _clipboardCheckPending = false;
+        unawaited(_checkClipboard());
+      }
     }
   }
 
@@ -1151,30 +1235,34 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
                             );
                           },
                         ),
-                        const SizedBox(height: 12),
-                        TabSwitcher(
-                          selectedTab: _selectedTab,
-                          onTabChanged: (tab) {
-                            if (tab == 'clock' && !isDeveloperBuild) {
-                              _showClockUpgradeDialog();
-                              return;
-                            }
-                            setState(() {
-                              _selectedTab = tab;
-                              _editingIndex = null;
-                              if (tab == 'clock') {
-                                _searchController.clear();
+                        if (!_isChatMode) ...[
+                          const SizedBox(height: 12),
+                          TabSwitcher(
+                            selectedTab: _selectedTab,
+                            onTabChanged: (tab) {
+                              if (tab == 'clock' && !isDeveloperBuild) {
+                                _showClockUpgradeDialog();
+                                return;
                               }
-                            });
-                            if (tab != 'clock') {
-                              WidgetsBinding.instance.addPostFrameCallback((_) {
-                                _focusNode.requestFocus();
+                              setState(() {
+                                _selectedTab = tab;
+                                _editingIndex = null;
+                                if (tab == 'clock') {
+                                  _searchController.clear();
+                                }
                               });
-                            }
-                          },
-                          searchFocusNode: _focusNode,
-                        ),
-                        if (_selectedTab != 'clock') ...[
+                              if (tab != 'clock') {
+                                WidgetsBinding.instance.addPostFrameCallback((
+                                  _,
+                                ) {
+                                  _focusNode.requestFocus();
+                                });
+                              }
+                            },
+                            searchFocusNode: _focusNode,
+                          ),
+                        ],
+                        if (_selectedTab != 'clock' && !_isChatMode) ...[
                           if (_enableEmojiPredictions &&
                               _currentPredictions.isNotEmpty) ...[
                             const SizedBox(height: 8),
@@ -1209,6 +1297,15 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
                                 Icons.search,
                                 color: Theme.of(context).colorScheme.primary,
                               ),
+                              suffixIcon: _selectedTab == 'clipboard'
+                                  ? IconButton(
+                                      tooltip: 'Switch to Omoji chat',
+                                      onPressed: _startClipboardChat,
+                                      icon: const Icon(
+                                        Icons.auto_awesome_rounded,
+                                      ),
+                                    )
+                                  : null,
                               filled: true,
                               fillColor: inputBg,
                               contentPadding: const EdgeInsets.symmetric(
@@ -1232,7 +1329,19 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
                         ],
                         const SizedBox(height: 16),
                         Expanded(
-                          child: _selectedTab == 'clock'
+                          child: _isChatMode
+                              ? ClipboardChatView(
+                                  initialPrompt: _chatInitialPrompt,
+                                  messages: _chatMessages,
+                                  onBack: () {
+                                    setState(() {
+                                      _isChatMode = false;
+                                    });
+                                    _focusNode.requestFocus();
+                                  },
+                                  onExport: _exportChat,
+                                )
+                              : _selectedTab == 'clock'
                               ? ClockView(
                                   alarms: _alarms,
                                   onAlarmsChanged: (updated) {
@@ -1278,6 +1387,7 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
                                     AppSettings.saveSettings(privateMode: val);
                                   },
                                   onClearHistory: _clearHistory,
+                                  onStartChat: _startClipboardChat,
                                 ),
                         ),
                       ],

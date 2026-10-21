@@ -2,33 +2,42 @@ name: omoji
 title: Omoji
 base: core24
 version: '1.2.6'
-summary: Glassmorphic desktop emoji picker and clipboard manager
+summary: Emoji picker, clipboard history, timers and to-dos in a glass panel
+
 description: |
-  Omoji is a lightweight, glassmorphic desktop emoji picker and clipboard history 
-  manager built natively for Linux & macOS by Aeroclipse Proprietary Limited 
-  using Flutter and C++.
+  Omoji is a lightweight, glassmorphic emoji picker and clipboard manager
+  for Linux and macOS, built with Flutter and C++ by Aeroclipse Proprietary
+  Limited.
+
+  Features:
+  - Fast emoji picker with a global shortcut
+  - Clipboard history you can search and re-paste from
+  - Alarm, clock, timer and stopwatch
+  - Audio ducking, so alarms and timers don't fight your music
+  - Built-in to-do list
+
+  Found a bug or have an idea? Open an issue on GitHub; every report is read.
 
 license: Proprietary
 contact: mailto:godlyttn@outlook.com
 website: https://aeroclipse-bw.web.app
 source-code: https://github.com/Aeroclipse-Proprietary-Limited/Omoji
 issues: https://github.com/Aeroclipse-Proprietary-Limited/Omoji/issues
+icon: lib/assets/imgs/app-logo.png
 
 grade: stable
 confinement: strict
-icon: lib/assets/imgs/app-logo.png
 
 apps:
   omoji:
     command: omoji
     autostart: omoji.desktop
     extensions: [gnome]
+    # The gnome extension already provides desktop, desktop-legacy,
+    # wayland and x11, so only list what it doesn't cover.
     plugs:
-      - desktop
-      - desktop-legacy
-      - wayland
-      - x11
-      - network
+      - audio-playback   # alarm / timer sounds
+      - network          # remove if nothing needs it; fewer plugs = more trust
 
 parts:
   omoji-app:
@@ -44,20 +53,19 @@ parts:
       - libgtk-3-dev
       - libkeybinder-3.0-dev
     stage-packages:
-      - python3
+      - python3          # drop if the bundled scripts don't need it (saves size)
       - libkeybinder-3.0-0
     override-build: |
       craftctl default
 
-      mkdir -p $CRAFT_PART_INSTALL/lib/scripts
-      mkdir -p $CRAFT_PART_INSTALL/lib/data
+      mkdir -p "$CRAFT_PART_INSTALL/lib/scripts" "$CRAFT_PART_INSTALL/lib/data"
 
-      if [ -d "$CRAFT_PART_SRC/scripts" ]; then
-        cp -r $CRAFT_PART_SRC/scripts/* $CRAFT_PART_INSTALL/lib/scripts/
-      elif [ -d "$CRAFT_PART_SRC/lib/scripts" ]; then
-        cp -r $CRAFT_PART_SRC/lib/scripts/* $CRAFT_PART_INSTALL/lib/scripts/
-      fi
+      for dir in scripts lib/scripts; do
+        if [ -d "$CRAFT_PART_SRC/$dir" ]; then
+          cp -r "$CRAFT_PART_SRC/$dir/." "$CRAFT_PART_INSTALL/lib/scripts/"
+        fi
+      done
 
       if [ -d "$CRAFT_PART_SRC/lib/data" ]; then
-        cp -r $CRAFT_PART_SRC/lib/data/* $CRAFT_PART_INSTALL/lib/data/
+        cp -r "$CRAFT_PART_SRC/lib/data/." "$CRAFT_PART_INSTALL/lib/data/"
       fi

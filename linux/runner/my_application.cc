@@ -14,6 +14,18 @@ struct _MyApplication {
 
 G_DEFINE_TYPE(MyApplication, my_application, GTK_TYPE_APPLICATION)
 
+static void clipboard_owner_change_cb(GtkClipboard*,
+                                     GdkEventOwnerChange*,
+                                     gpointer user_data) {
+  fl_method_channel_invoke_method(FL_METHOD_CHANNEL(user_data),
+                                 "clipboardChanged", nullptr, nullptr, nullptr,
+                                 nullptr);
+}
+
+static void release_clipboard_channel(gpointer user_data, GClosure*) {
+  g_object_unref(user_data);
+}
+
 static gboolean window_focus_in_cb(GtkWidget* widget, GdkEventFocus* event, gpointer user_data) {
   if (!gtk_window_get_accept_focus(GTK_WINDOW(widget))) {
     return TRUE; // Block GTK window focus acquisition in overlay mode!
@@ -199,6 +211,11 @@ static void my_application_activate(GApplication* application) {
       fl_engine_get_binary_messenger(fl_view_get_engine(view)),
       "com.aeroclipse.omoji/window",
       FL_METHOD_CODEC(codec));
+  GtkClipboard* clipboard =
+      gtk_clipboard_get_default(gdk_display_get_default());
+  g_signal_connect_data(
+      clipboard, "owner-change", G_CALLBACK(clipboard_owner_change_cb),
+      g_object_ref(channel), release_clipboard_channel, G_CONNECT_DEFAULT);
   fl_method_channel_set_method_call_handler(
       channel, window_control_method_call_cb, window, nullptr);
 

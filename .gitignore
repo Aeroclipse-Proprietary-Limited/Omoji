@@ -34,6 +34,17 @@ migrate_working_dir/
 /build/
 /coverage/
 
+# Local secret files
+.vscode
+.agents
+.flatpak-builder/
+lib/models/.ipynb_checkpoints
+lib/models/fine_tuned_classifier/
+lib/models/training data
+System python environment
+lib/models/model_results/
+venv
+
 # Symbolication related
 app.*.symbols
 
@@ -45,3 +56,10 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Misc
+lib/models/model_output/checkpoint-3
+lib/models/mobile_model_raw
+
+# Money maker
+scripts/install_user.sh
