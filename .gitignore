@@ -63,3 +63,4 @@ lib/models/mobile_model_raw
 
 # Money maker
 scripts/install_user.sh
+lib/models/llama.cpp
