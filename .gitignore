@@ -60,7 +60,7 @@ app.*.map.json
 # Misc
 lib/models/model_output/checkpoint-3
 lib/models/mobile_model_raw
+lib/models/llama.cpp
 
 # Money maker
 scripts/install_user.sh
-lib/models/llama.cpp
