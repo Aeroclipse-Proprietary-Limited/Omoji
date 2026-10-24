@@ -23,7 +23,9 @@ class AlarmService {
   static bool enableAudioDucking = true;
   static Process? _currentAudioProcess;
 
-  static final ValueNotifier<AlarmItem?> activeRingingAlarm = ValueNotifier(null);
+  static final ValueNotifier<AlarmItem?> activeRingingAlarm = ValueNotifier(
+    null,
+  );
   static final ValueNotifier<String?> activeRingingTimer = ValueNotifier(null);
   static final ValueNotifier<String?> silencedAlarmNotice = ValueNotifier(null);
 
@@ -39,9 +41,12 @@ class AlarmService {
     if (todos != null) _todos = todos;
     customAlarmSoundPath = customSoundPath;
     if (useSystemDefault != null) useSystemDefaultSound = useSystemDefault;
-    if (loopIntervalSeconds != null) audioLoopIntervalSeconds = loopIntervalSeconds.clamp(10, 93);
+    if (loopIntervalSeconds != null)
+      audioLoopIntervalSeconds = loopIntervalSeconds.clamp(10, 93);
     if (enableDucking != null) enableAudioDucking = enableDucking;
-    LoggerService.info('AlarmService initialized with ${_alarms.length} alarm(s) and ${_todos.length} todo(s).');
+    LoggerService.info(
+      'AlarmService initialized with ${_alarms.length} alarm(s) and ${_todos.length} todo(s).',
+    );
     _startMonitoring();
   }
 
@@ -65,7 +70,8 @@ class AlarmService {
   }) {
     if (useSystemDefault != null) useSystemDefaultSound = useSystemDefault;
     if (customPath != null) customAlarmSoundPath = customPath;
-    if (loopIntervalSeconds != null) audioLoopIntervalSeconds = loopIntervalSeconds.clamp(10, 93);
+    if (loopIntervalSeconds != null)
+      audioLoopIntervalSeconds = loopIntervalSeconds.clamp(10, 93);
     if (enableDucking != null) enableAudioDucking = enableDucking;
   }
 
@@ -86,7 +92,8 @@ class AlarmService {
 
     for (var alarm in _alarms) {
       if (!alarm.isEnabled) continue;
-      if (alarm.lastFiredDate == currentDateStr && alarm.time == currentHHmm) continue;
+      if (alarm.lastFiredDate == currentDateStr && alarm.time == currentHHmm)
+        continue;
 
       if (alarm.time == currentHHmm) {
         bool shouldFire = false;
@@ -98,7 +105,9 @@ class AlarmService {
 
         if (shouldFire) {
           alarm.lastFiredDate = currentDateStr;
-          LoggerService.info('Alarm triggered: "${alarm.label}" at $currentHHmm');
+          LoggerService.info(
+            'Alarm triggered: "${alarm.label}" at $currentHHmm',
+          );
           triggerAlarm(alarm);
           break; // Trigger one alarm at a time
         }
@@ -108,11 +117,16 @@ class AlarmService {
     // Check To-Do Reminders
     for (var todo in _todos) {
       if (todo.isCompleted || todo.hasNotified) continue;
-      if (now.isAfter(todo.targetDateTime) || now.isAtSameMomentAs(todo.targetDateTime)) {
-        LoggerService.info('To-Do reminder triggered: "${todo.title}" (Recurrence: ${todo.recurrence})');
+      if (now.isAfter(todo.targetDateTime) ||
+          now.isAtSameMomentAs(todo.targetDateTime)) {
+        LoggerService.info(
+          'To-Do reminder triggered: "${todo.title}" (Recurrence: ${todo.recurrence})',
+        );
         if (todo.recurrence != 'none') {
           todo.advanceToNextRecurrence();
-          LoggerService.info('Advanced recurring To-Do "${todo.title}" to ${todo.formattedTargetDate}');
+          LoggerService.info(
+            'Advanced recurring To-Do "${todo.title}" to ${todo.formattedTargetDate}',
+          );
         } else {
           todo.hasNotified = true;
         }
@@ -130,7 +144,9 @@ class AlarmService {
     _startTimeoutTimer(300, isAlarm: false, label: 'To-Do: ${todo.title}');
     _sendSystemNotification(
       title: '📌 Reminder: ${todo.title}',
-      body: todo.description.isNotEmpty ? todo.description : 'Scheduled event reminder',
+      body: todo.description.isNotEmpty
+          ? todo.description
+          : 'Scheduled event reminder',
     );
     _unminimizeWindow();
   }
@@ -154,21 +170,27 @@ class AlarmService {
     activeRingingTimer.value = label;
     _startAudioLoop();
     _startTimeoutTimer(300, isAlarm: false, label: label);
-    _sendSystemNotification(
-      title: '⏳ Timer Finished!',
-      body: label,
-    );
+    _sendSystemNotification(title: '⏳ Timer Finished!', body: label);
     _unminimizeWindow();
   }
 
-  static void _startTimeoutTimer(int seconds, {required bool isAlarm, AlarmItem? alarm, String? label}) {
+  static void _startTimeoutTimer(
+    int seconds, {
+    required bool isAlarm,
+    AlarmItem? alarm,
+    String? label,
+  }) {
     _alarmRingingTimeoutTimer?.cancel();
     _alarmRingingTimeoutTimer = Timer(Duration(seconds: seconds), () {
       _autoSilenceRinging(isAlarm: isAlarm, alarm: alarm, label: label);
     });
   }
 
-  static void _autoSilenceRinging({required bool isAlarm, AlarmItem? alarm, String? label}) {
+  static void _autoSilenceRinging({
+    required bool isAlarm,
+    AlarmItem? alarm,
+    String? label,
+  }) {
     _audioLoopTimer?.cancel();
     _audioLoopTimer = null;
     _alarmRingingTimeoutTimer = null;
@@ -190,7 +212,9 @@ class AlarmService {
     } else {
       silencedAlarmNotice.value =
           "Timer '${label ?? 'Finished'}' was automatically silenced after 5 min(s).";
-      LoggerService.info('Timer "${label ?? 'Finished'}" automatically silenced.');
+      LoggerService.info(
+        'Timer "${label ?? 'Finished'}" automatically silenced.',
+      );
     }
 
     activeRingingAlarm.value = null;
@@ -231,83 +255,97 @@ class AlarmService {
     }
   }
 
+  static Future<Process?> _startAudioPlayer(
+    String executable,
+    List<String> arguments,
+  ) async {
+    try {
+      final process = await Process.start(executable, arguments);
+      process.stdout.listen((_) {});
+      process.stderr.listen((_) {});
+
+      final exitCode = await Future.any<int?>([
+        process.exitCode,
+        Future.delayed(const Duration(milliseconds: 500), () => null),
+      ]);
+      if (exitCode != null && exitCode != 0) {
+        await LoggerService.error(
+          'Audio player "$executable" exited with code $exitCode.',
+        );
+        return null;
+      }
+      return process;
+    } on ProcessException catch (error) {
+      await LoggerService.warn(
+        'Could not start audio player "$executable": $error',
+      );
+      return null;
+    }
+  }
+
   static Future<void> playAlertSound({String? customPath}) async {
     killAudioProcess();
     final soundPath = customPath ?? customAlarmSoundPath;
-    LoggerService.info('Playing alert sound (CustomPath: $soundPath, UseDefault: $useSystemDefaultSound)');
+    LoggerService.info(
+      'Playing alert sound (CustomPath: $soundPath, UseDefault: $useSystemDefaultSound)',
+    );
 
     // Play custom audio file if enabled and exists
-    if (!useSystemDefaultSound && soundPath != null && soundPath.isNotEmpty && File(soundPath).existsSync()) {
+    if (!useSystemDefaultSound &&
+        soundPath != null &&
+        soundPath.isNotEmpty &&
+        File(soundPath).existsSync()) {
       if (Platform.isLinux) {
-        try {
-          _currentAudioProcess = await Process.start(
-            'pw-play',
-            [soundPath],
-          );
-          return;
-        } catch (_) {}
-
-        try {
-          _currentAudioProcess = await Process.start(
-            'ffplay',
-            ['-nodisp', '-autoexit', '-loglevel', 'quiet', soundPath],
-          );
-          return;
-        } catch (_) {}
-
-        try {
-          _currentAudioProcess = await Process.start('paplay', [soundPath]);
-          return;
-        } catch (_) {}
-
-        try {
-          _currentAudioProcess = await Process.start(
-            'cvlc',
-            ['--play-and-exit', soundPath],
-          );
-          return;
-        } catch (_) {}
-
-        try {
-          _currentAudioProcess = await Process.start('mpg123', ['-q', soundPath]);
-          return;
-        } catch (_) {}
-
-        try {
-          _currentAudioProcess = await Process.start(
-            'canberra-gtk-play',
-            ['--file=$soundPath'],
-          );
-          return;
-        } catch (_) {}
+        final players = [
+          ('pw-play', [soundPath]),
+          ('ffplay', ['-nodisp', '-autoexit', '-loglevel', 'quiet', soundPath]),
+          ('paplay', [soundPath]),
+          ('cvlc', ['--play-and-exit', soundPath]),
+          ('mpg123', ['-q', soundPath]),
+          ('canberra-gtk-play', ['--file=$soundPath']),
+        ];
+        for (final (executable, arguments) in players) {
+          _currentAudioProcess = await _startAudioPlayer(executable, arguments);
+          if (_currentAudioProcess != null) return;
+        }
       } else if (Platform.isMacOS) {
-        try {
-          _currentAudioProcess = await Process.start('afplay', [soundPath]);
-          return;
-        } catch (_) {}
+        _currentAudioProcess = await _startAudioPlayer('afplay', [soundPath]);
+        if (_currentAudioProcess != null) return;
       }
+    } else if (!useSystemDefaultSound &&
+        soundPath != null &&
+        soundPath.isNotEmpty) {
+      await LoggerService.error(
+        'Custom alarm sound file not found: $soundPath',
+      );
     }
 
-    // Default System Fallback Sound
+    // Use the bundled system alarm file directly to avoid sound-theme lookup
+    // failures when the selected theme does not define the alarm event.
     if (Platform.isLinux) {
-      try {
-        _currentAudioProcess = await Process.start(
-          'canberra-gtk-play',
-          ['--id=alarm-clock-elapsed'],
-        );
-      } catch (_) {
-        try {
-          _currentAudioProcess = await Process.start('paplay', [
-            '/usr/share/sounds/freedesktop/stereo/alarm-clock-elapsed.oga'
-          ]);
-        } catch (_) {}
+      const soundPath =
+          '/usr/share/sounds/freedesktop/stereo/alarm-clock-elapsed.oga';
+      final players = [
+        ('paplay', [soundPath]),
+        ('ffplay', ['-nodisp', '-autoexit', '-loglevel', 'quiet', soundPath]),
+        ('canberra-gtk-play', ['--file=$soundPath']),
+      ];
+      for (final (executable, arguments) in players) {
+        _currentAudioProcess = await _startAudioPlayer(executable, arguments);
+        if (_currentAudioProcess != null) return;
       }
+      await LoggerService.error(
+        'No available audio player could play the system alarm sound.',
+      );
     } else if (Platform.isMacOS) {
-      try {
-        _currentAudioProcess = await Process.start('afplay', [
-          '/System/Library/Sounds/Glass.aiff'
-        ]);
-      } catch (_) {}
+      _currentAudioProcess = await _startAudioPlayer('afplay', [
+        '/System/Library/Sounds/Glass.aiff',
+      ]);
+      if (_currentAudioProcess == null) {
+        await LoggerService.error(
+          'No available audio player could play the system alarm sound.',
+        );
+      }
     }
   }
 
@@ -332,7 +370,7 @@ class AlarmService {
       try {
         await Process.run('osascript', [
           '-e',
-          'display notification "$body" with title "$title" sound name "Glass"'
+          'display notification "$body" with title "$title" sound name "Glass"',
         ]);
       } catch (e) {
         debugPrint('Failed macOS notification: $e');

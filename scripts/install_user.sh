@@ -83,7 +83,6 @@ BIN_DIR="${HOME}/.local/bin"
 APP_DIR="${HOME}/.local/share/applications"
 ICON_BASE="${HOME}/.local/share/icons/hicolor"
 ICON_DIR_256="${ICON_BASE}/256x256/apps"
-ICON_DIR_SCALABLE="${ICON_BASE}/scalable/apps"
 PIXMAP_DIR="${HOME}/.local/share/pixmaps"
 
 echo "Creating user directories..."
@@ -91,7 +90,6 @@ mkdir -p "${INSTALL_DIR}"
 mkdir -p "${BIN_DIR}"
 mkdir -p "${APP_DIR}"
 mkdir -p "${ICON_DIR_256}"
-mkdir -p "${ICON_DIR_SCALABLE}"
 mkdir -p "${PIXMAP_DIR}"
 
 echo "Installing release bundle into ${INSTALL_DIR}..."
@@ -114,7 +112,6 @@ echo "Installing icons..."
 if [ -f "lib/assets/imgs/app-logo.png" ]; then
     cp "lib/assets/imgs/app-logo.png" "${PIXMAP_DIR}/omoji.png"
     cp "lib/assets/imgs/app-logo.png" "${ICON_DIR_256}/omoji.png"
-    cp "lib/assets/imgs/app-logo.png" "${ICON_DIR_SCALABLE}/omoji.png"
 fi
 
 if [ -f "lib/assets/imgs/app-logo.jpg" ]; then
@@ -128,11 +125,11 @@ Version=1.0
 Name=Omoji
 Comment=Acrylic emoji search and clipboard manager
 Exec=${BIN_DIR}/omoji
-Icon=omoji
+Icon=${PIXMAP_DIR}/omoji.png
 Terminal=false
 Type=Application
 Categories=Utility;
-StartupWMClass=omoji
+StartupWMClass=com.aeroclipse.omoji
 EOF
 
 chmod +x "${APP_DIR}/omoji.desktop"
@@ -141,14 +138,24 @@ if command -v update-desktop-database >/dev/null 2>&1; then
     update-desktop-database "${APP_DIR}" >/dev/null 2>&1 || true
 fi
 
-# Ensure base index.theme exists before updating GTK icon cache to prevent cache invalid errors
-if [ ! -f "${ICON_BASE}/index.theme" ]; then
-    cat << EOF > "${ICON_BASE}/index.theme"
+# Ensure the hicolor index declares the icon directory before refreshing its cache.
+if [ ! -f "${ICON_BASE}/index.theme" ] ||
+    ! grep -q '^\[256x256/apps\]$' "${ICON_BASE}/index.theme"; then
+    if [ -f "/usr/share/icons/hicolor/index.theme" ]; then
+        cp "/usr/share/icons/hicolor/index.theme" "${ICON_BASE}/index.theme"
+    else
+        cat << EOF > "${ICON_BASE}/index.theme"
 [Icon Theme]
 Name=Hicolor
 Comment=Fallback theme
-Directories=256x256/apps,scalable/apps
+Directories=256x256/apps
+
+[256x256/apps]
+Size=256
+Context=Applications
+Type=Fixed
 EOF
+    fi
 fi
 
 if command -v gtk-update-icon-cache >/dev/null 2>&1; then

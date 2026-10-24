@@ -68,7 +68,7 @@ Exec=/usr/bin/omoji
 Icon=omoji
 Terminal=false
 Categories=Utility;
-StartupWMClass=omoji
+StartupWMClass=com.aeroclipse.omoji
 INNER_EOF
 
 cat << 'INNER_EOF' > %{buildroot}/usr/bin/omoji

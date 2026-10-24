@@ -215,7 +215,8 @@ static void my_application_activate(GApplication* application) {
       gtk_clipboard_get_default(gdk_display_get_default());
   g_signal_connect_data(
       clipboard, "owner-change", G_CALLBACK(clipboard_owner_change_cb),
-      g_object_ref(channel), release_clipboard_channel, G_CONNECT_DEFAULT);
+      g_object_ref(channel), release_clipboard_channel,
+      static_cast<GConnectFlags>(0));
   fl_method_channel_set_method_call_handler(
       channel, window_control_method_call_cb, window, nullptr);
 

@@ -56,7 +56,7 @@ Icon=omoji
 Terminal=false
 Type=Application
 Categories=Utility;
-StartupWMClass=omoji
+StartupWMClass=com.aeroclipse.omoji
 EOF
 
 # Create Debian control file
