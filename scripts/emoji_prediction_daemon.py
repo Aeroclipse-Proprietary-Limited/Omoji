@@ -7,6 +7,7 @@ import sys
 import time
 import select
 import socket
+import struct
 from pathlib import Path
 
 log_dir = Path.home() / '.config' / 'omoji'
@@ -150,18 +151,35 @@ class EmojiPredictionDaemon:
             self.clients.discard(w)
 
     def synthesize_backspaces(self, count):
-        if not self.uinput:
-            return
+        if self.uinput:
+            try:
+                for _ in range(count):
+                    self.uinput.write(e.EV_KEY, e.KEY_BACKSPACE, 1)
+                    self.uinput.syn()
+                    time.sleep(0.01)
+                    self.uinput.write(e.EV_KEY, e.KEY_BACKSPACE, 0)
+                    self.uinput.syn()
+                    time.sleep(0.01)
+                return
+            except Exception as err:
+                print(f"[Daemon] Backspace synthesis error: {err}")
+
+        # Fallback via ydotoold socket if uinput device is not directly open
         try:
-            for _ in range(count):
-                self.uinput.write(e.EV_KEY, e.KEY_BACKSPACE, 1)
-                self.uinput.syn()
-                time.sleep(0.01)
-                self.uinput.write(e.EV_KEY, e.KEY_BACKSPACE, 0)
-                self.uinput.syn()
-                time.sleep(0.01)
+            sp = '/tmp/.ydotool_socket'
+            if os.path.exists(sp):
+                s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+                s.connect(sp)
+                for _ in range(count):
+                    s.sendall(struct.pack("<HHi", 1, 14, 1))  # KEY_BACKSPACE = 14
+                    s.sendall(struct.pack("<HHi", 0, 0, 0))
+                    time.sleep(0.01)
+                    s.sendall(struct.pack("<HHi", 1, 14, 0))
+                    s.sendall(struct.pack("<HHi", 0, 0, 0))
+                    time.sleep(0.01)
+                s.close()
         except Exception as err:
-            print(f"[Daemon] Backspace synthesis error: {err}")
+            print(f"[Daemon] Socket backspace synthesis error: {err}")
 
     def handle_key(self, code, val):
         # Process key press (val == 1) and key repeat (val == 2)

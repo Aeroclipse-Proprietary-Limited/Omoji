@@ -92,11 +92,11 @@ class _TopBarState extends State<TopBar> with TickerProviderStateMixin {
             builder: (context, _) => Tooltip(
               message: hasUpdate
                   ? _showVersion
-                        ? 'Update available — tap to show Omoji'
-                        : 'Update available — tap to show version'
+                        ? 'Update available — Revert to Omoji'
+                        : 'Update available — Show version'
                   : _showVersion
-                  ? 'Tap to show Omoji'
-                  : 'Tap to show version',
+                  ? 'Revert to Omoji'
+                  : 'Show version',
               child: InkWell(
                 onTap: _toggleTitle,
                 onLongPress: hasUpdate ? () => _openReleases(context) : null,

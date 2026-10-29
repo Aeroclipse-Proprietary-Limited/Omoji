@@ -75,6 +75,12 @@ stop_running_omoji() {
 
 stop_running_omoji
 
+if ! command -v flutter >/dev/null 2>&1; then
+    if [ -x "${HOME}/Documents/Dev-portal/flutter/bin/flutter" ]; then
+        export PATH="${HOME}/Documents/Dev-portal/flutter/bin:${PATH}"
+    fi
+fi
+
 echo "Building Omoji Linux release bundle..."
 flutter build linux --release --dart-define=OMOJI_DEVELOPER_BUILD=true
 

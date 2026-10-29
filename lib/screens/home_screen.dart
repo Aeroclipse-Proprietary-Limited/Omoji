@@ -18,6 +18,7 @@ import 'package:omoji/services/alarm_service.dart';
 import 'package:omoji/services/app_settings.dart';
 import 'package:omoji/services/emoji_prediction_service.dart';
 import 'package:omoji/services/hotkey_service.dart';
+import 'package:omoji/services/logger_service.dart';
 import 'package:omoji/services/stopwatch_service.dart';
 import 'package:omoji/services/timer_service.dart';
 import 'package:omoji/widgets/clipboard_view.dart';
@@ -79,6 +80,7 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
   Timer? _clipboardTimer;
   bool _isCheckingClipboard = false;
   bool _clipboardCheckPending = false;
+  bool _isPastingSelection = false;
   int? _editingIndex;
   final TextEditingController _editController = TextEditingController();
 
@@ -206,20 +208,20 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
           debugPrint('Error calculating display offset: $e');
         }
       } else {
-        _clearOverlayMode();
+        await _clearOverlayMode();
       }
     } else if (event.type == 'autofill') {
       final emoji = event.emoji;
       if (emoji != null && emoji.isNotEmpty) {
         _handleEmojiSelection(emoji);
       }
-      _clearOverlayMode();
+      await _clearOverlayMode();
     } else if (event.type == 'clear') {
-      _clearOverlayMode();
+      await _clearOverlayMode();
     }
   }
 
-  void _clearOverlayMode() async {
+  Future<void> _clearOverlayMode() async {
     if (_isFloatingOverlayMode) {
       setState(() {
         _isFloatingOverlayMode = false;
@@ -599,6 +601,7 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
 
   @override
   void onWindowBlur() async {
+    if (_isPastingSelection) return;
     // Keep Omoji open & visible as long as an alarm/timer is ringing or music is playing!
     if (AlarmService.activeRingingAlarm.value != null ||
         AlarmService.activeRingingTimer.value != null) {
@@ -611,100 +614,106 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
     });
   }
 
-  void _injectTextOrPaste(String text) async {
-    if (!_autoPaste) return;
+  Future<void> _injectTextOrPaste(String text) async {
+    if (!_autoPaste) {
+      await LoggerService.info('Auto-paste skipped because it is disabled.');
+      return;
+    }
 
     if (Platform.isLinux) {
-      // 1. Try kernel uinput via python3 evdev (Universal for native Wayland & X11)
+      // Keep the Linux fallback order in omoji_paste.py aligned with commit
+      // 261a3f8: uinput, xdotool, wtype, ydotool, then direct text fallbacks.
       try {
-        final evdevScript = [
-          'import evdev, time',
-          'from evdev import UInput, ecodes as e',
-          'ui = UInput()',
-          'time.sleep(0.05)',
-          'for k in [e.KEY_LEFTMETA, e.KEY_RIGHTMETA, e.KEY_LEFTALT, e.KEY_RIGHTALT, e.KEY_LEFTSHIFT, e.KEY_RIGHTSHIFT, e.KEY_LEFTCTRL, e.KEY_RIGHTCTRL]:',
-          '    ui.write(e.EV_KEY, k, 0)',
-          'ui.syn()',
-          'time.sleep(0.02)',
-          'ui.write(e.EV_KEY, e.KEY_LEFTCTRL, 1)',
-          'ui.write(e.EV_KEY, e.KEY_V, 1)',
-          'ui.syn()',
-          'time.sleep(0.03)',
-          'ui.write(e.EV_KEY, e.KEY_V, 0)',
-          'ui.write(e.EV_KEY, e.KEY_LEFTCTRL, 0)',
-          'ui.syn()',
-          'ui.close()',
-        ].join('\n');
-        final res = await Process.run('python3', ['-c', evdevScript]);
-        if (res.exitCode == 0) return;
+        final exeDir = File(Platform.resolvedExecutable).parent.path;
+        final home = Platform.environment['HOME'] ?? '';
+        final scriptLocations = <String>[
+          '$exeDir/lib/scripts/omoji_paste.py',
+          '$home/.local/lib/omoji/lib/scripts/omoji_paste.py',
+          'scripts/omoji_paste.py',
+        ];
+        for (final loc in scriptLocations) {
+          if (File(loc).existsSync()) {
+            final res = await Process.run(
+              'python3',
+              [loc, text],
+            ).timeout(const Duration(seconds: 2));
+            if (res.exitCode == 0) {
+              await LoggerService.info(
+                'Auto-paste command succeeded: omoji_paste.py ($loc)',
+              );
+              return;
+            }
+          }
+        }
       } catch (e) {
-        debugPrint("python3 evdev paste error: $e");
+        debugPrint('omoji_paste.py error: $e');
       }
 
-      // 2. Try xdotool key --clearmodifiers ctrl+v
-      try {
-        final res = await Process.run('xdotool', [
-          'key',
-          '--clearmodifiers',
-          'ctrl+v',
-        ]);
-        if (res.exitCode == 0) return;
-      } catch (e) {
-        debugPrint("xdotool key paste error: $e");
+      final isWayland =
+          Platform.environment['WAYLAND_DISPLAY']?.isNotEmpty == true ||
+          Platform.environment['XDG_SESSION_TYPE'] == 'wayland';
+
+      Future<bool> runPasteTool(
+        String label,
+        String executable,
+        List<String> arguments,
+      ) async {
+        try {
+          final result = await Process.run(
+            executable,
+            arguments,
+          ).timeout(const Duration(seconds: 2));
+          if (result.exitCode == 0) {
+            await LoggerService.info('Auto-paste command succeeded: $label');
+            return true;
+          }
+          await LoggerService.warn(
+            'Auto-paste command failed: $label exited ${result.exitCode}: '
+            '${result.stderr}'
+                .trim(),
+          );
+          debugPrint(
+            '$label exited ${result.exitCode}: ${result.stderr}'.trim(),
+          );
+        } on ProcessException {
+          await LoggerService.warn(
+            'Auto-paste command unavailable: $label is not installed or could not be started.',
+          );
+          debugPrint('$label is not installed or could not be started.');
+        } on TimeoutException {
+          await LoggerService.warn('Auto-paste command timed out: $label');
+          debugPrint('$label timed out.');
+        } catch (error) {
+          await LoggerService.error('Auto-paste command failed: $label', error);
+          debugPrint('$label failed: $error');
+        }
+        return false;
       }
 
-      // 3. Try wtype paste (Ctrl+V) or direct text injection
-      try {
-        final res = await Process.run('wtype', [
-          '-M',
-          'ctrl',
-          '-k',
-          'v',
-          '-m',
-          'ctrl',
-        ]);
-        if (res.exitCode == 0) return;
-      } catch (e) {
-        debugPrint("wtype paste error: $e");
+      // On Wayland, xdotool can report success without sending keys to the
+      // native target. Only use it on X11; ydotool needs the active daemon.
+      final pasteCommands = isWayland
+          ? <(String, String, List<String>)>[
+              ('ydotool', 'ydotool', ['key', '29:1', '47:1', '47:0', '29:0']),
+              ('wtype', 'wtype', ['-M', 'ctrl', '-k', 'v', '-m', 'ctrl']),
+            ]
+          : <(String, String, List<String>)>[
+              ('xdotool', 'xdotool', ['key', '--clearmodifiers', 'ctrl+v']),
+              ('wtype', 'wtype', ['-M', 'ctrl', '-k', 'v', '-m', 'ctrl']),
+              ('ydotool', 'ydotool', ['key', '29:1', '47:1', '47:0', '29:0']),
+            ];
+
+      for (final (label, executable, arguments) in pasteCommands) {
+        if (await runPasteTool(label, executable, arguments)) return;
       }
 
-      try {
-        final res = await Process.run('wtype', ['--', text]);
-        if (res.exitCode == 0) return;
-      } catch (e) {
-        debugPrint("wtype text error: $e");
-      }
-
-      // 4. Try ydotool key 29:1 47:1 47:0 29:0 (Ctrl+V)
-      try {
-        final res = await Process.run('ydotool', [
-          'key',
-          '29:1',
-          '47:1',
-          '47:0',
-          '29:0',
-        ]);
-        if (res.exitCode == 0) return;
-      } catch (e) {
-        debugPrint("ydotool paste error: $e");
-      }
-
-      // 5. Try dotool key ctrl+v
-      try {
-        final process = await Process.start('dotool', []);
-        process.stdin.writeln('key ctrl+v');
-        await process.stdin.close();
-        final exitCode = await process.exitCode;
-        if (exitCode == 0) return;
-      } catch (e) {
-        debugPrint("dotool paste error: $e");
-      }
-
-      // 6. Fallback: xdotool type
-      try {
-        await Process.run('xdotool', ['type', '--clearmodifiers', text]);
-      } catch (e) {
-        debugPrint("xdotool type fallback error: $e");
+      await runPasteTool('wtype text fallback', 'wtype', ['--', text]);
+      if (!isWayland) {
+        await runPasteTool(
+          'xdotool text fallback',
+          'xdotool',
+          ['type', '--clearmodifiers', text],
+        );
       }
     } else if (Platform.isMacOS) {
       try {
@@ -731,6 +740,12 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
     await Clipboard.setData(ClipboardData(text: emoji));
     _lastClipboardText = emoji;
 
+    if (Platform.isLinux) {
+      try {
+        await Process.run('wl-copy', ['--', emoji]);
+      } catch (_) {}
+    }
+
     setState(() {
       _recentEmojis.remove(emoji);
       _recentEmojis.insert(0, emoji);
@@ -742,16 +757,18 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
     final isFloating = _isFloatingOverlayMode;
     final wordToClear = _globalPredictionWord;
 
-    _clearOverlayMode();
-    await windowManager.hide();
-    _searchController.clear();
+    await _clearOverlayMode();
+    await _dismissWindowForPaste();
 
     if (isFloating && wordToClear.isNotEmpty) {
       EmojiPredictionService.requestAutofillBackspaces(wordToClear.length);
     }
 
-    await Future.delayed(const Duration(milliseconds: 220));
-    _injectTextOrPaste(emoji);
+    try {
+      await _injectTextOrPaste(emoji);
+    } finally {
+      _isPastingSelection = false;
+    }
   }
 
   Future<void> _loadClipboardSettings() async {
@@ -883,11 +900,34 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
     await Clipboard.setData(ClipboardData(text: text));
     _lastClipboardText = text;
 
-    await windowManager.hide();
-    _searchController.clear();
+    if (Platform.isLinux) {
+      try {
+        await Process.run('wl-copy', ['--', text]);
+      } catch (_) {}
+    }
 
-    await Future.delayed(const Duration(milliseconds: 220));
-    _injectTextOrPaste(text);
+    await _dismissWindowForPaste();
+    try {
+      await _injectTextOrPaste(text);
+    } finally {
+      _isPastingSelection = false;
+    }
+  }
+
+  Future<void> _dismissWindowForPaste() async {
+    _isPastingSelection = true;
+    try {
+      await windowManager.hide();
+      _searchController.clear();
+      // Auto-paste depends on the previously focused app regaining focus before
+      // Ctrl+V; keep this delay when changing the dismissal/focus handoff logic.
+      await Future.delayed(const Duration(milliseconds: 250));
+    } catch (error) {
+      await LoggerService.warn(
+        'Could not hand focus back before paste: $error',
+      );
+      await Future.delayed(const Duration(milliseconds: 250));
+    }
   }
 
   List<ClipboardItem> _filteredClipboardHistory() {

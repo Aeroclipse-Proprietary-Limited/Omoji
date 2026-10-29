@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import sys
+import os
 import time
 import subprocess
 
@@ -45,22 +46,70 @@ def try_wtype_paste():
     except Exception:
         return False
 
+def try_wtype_text(text):
+    try:
+        res = subprocess.run(['wtype', '--', text], capture_output=True)
+        return res.returncode == 0
+    except Exception:
+        return False
+
 def try_ydotool_paste():
     try:
-        res = subprocess.run(['ydotool', 'key', '29:1', '47:1', '47:0', '29:0'], capture_output=True)
+        res = subprocess.run(
+            ['ydotool', 'key', '29:1', '47:1', '47:0', '29:0'],
+            capture_output=True,
+        )
+        return res.returncode == 0
+    except Exception:
+        return False
+
+def try_dotool_paste():
+    try:
+        res = subprocess.run(['dotool'], input='key ctrl+v\n', text=True, capture_output=True)
+        return res.returncode == 0
+    except Exception:
+        return False
+
+def try_xdotool_text(text):
+    try:
+        res = subprocess.run(['xdotool', 'type', '--clearmodifiers', text], capture_output=True)
         return res.returncode == 0
     except Exception:
         return False
 
 def main():
-    if try_uinput_paste():
-        sys.exit(0)
-    if try_xdotool_paste():
-        sys.exit(0)
-    if try_wtype_paste():
-        sys.exit(0)
-    if try_ydotool_paste():
-        sys.exit(0)
+    text = sys.argv[1] if len(sys.argv) > 1 else ''
+    is_wayland = bool(
+        os.environ.get('WAYLAND_DISPLAY')
+        or os.environ.get('XDG_SESSION_TYPE') == 'wayland'
+    )
+
+    if is_wayland:
+        # xdotool can exit 0 on Wayland without delivering keys to native apps.
+        # Try the uinput-backed daemon first, and never treat xdotool as success.
+        if try_ydotool_paste():
+            sys.exit(0)
+        if try_uinput_paste():
+            sys.exit(0)
+        if try_wtype_paste():
+            sys.exit(0)
+        if text and try_wtype_text(text):
+            sys.exit(0)
+    else:
+        if try_uinput_paste():
+            sys.exit(0)
+        if try_xdotool_paste():
+            sys.exit(0)
+        if try_wtype_paste():
+            sys.exit(0)
+        if text and try_wtype_text(text):
+            sys.exit(0)
+        if try_ydotool_paste():
+            sys.exit(0)
+        if try_dotool_paste():
+            sys.exit(0)
+        if text and try_xdotool_text(text):
+            sys.exit(0)
     sys.exit(1)
 
 if __name__ == '__main__':

@@ -64,3 +64,5 @@ lib/models/llama.cpp
 
 # Money maker
 scripts/install_user.sh
+# Widget Preview related
+.widget_preview/
