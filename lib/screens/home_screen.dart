@@ -3,6 +3,7 @@
 import 'dart:ui';
 import 'dart:io';
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -81,6 +82,7 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
   bool _isCheckingClipboard = false;
   bool _clipboardCheckPending = false;
   bool _isPastingSelection = false;
+  bool _isOpeningAttachmentPicker = false;
   int? _editingIndex;
   final TextEditingController _editController = TextEditingController();
 
@@ -506,7 +508,7 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
       feature: 'Clock tools',
     );
     if (wantsFullVersion && mounted) {
-      await _openFullVersionPage();
+      await _openPlansPage();
     }
   }
 
@@ -517,7 +519,7 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
         feature: 'Omoji Chat',
       );
       if (wantsFullVersion && mounted) {
-        await _openFullVersionPage();
+        await _openPlansPage();
       }
       return;
     }
@@ -563,31 +565,6 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
     }
   }
 
-  Future<void> _openFullVersionPage() async {
-    final uri = Uri.parse(fullVersionUrl);
-    final command = Platform.isMacOS
-        ? ('open', [uri.toString()])
-        : Platform.isWindows
-        ? ('rundll32', ['url.dll,FileProtocolHandler', uri.toString()])
-        : ('xdg-open', [uri.toString()]);
-    try {
-      final result = await Process.run(command.$1, command.$2);
-      if (result.exitCode != 0 && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Could not open GitHub Releases: ${result.stderr}'),
-          ),
-        );
-      }
-    } on ProcessException catch (error) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not open GitHub Releases: $error')),
-        );
-      }
-    }
-  }
-
   @override
   void onWindowFocus() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -601,7 +578,7 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
 
   @override
   void onWindowBlur() async {
-    if (_isPastingSelection) return;
+    if (_isPastingSelection || _isOpeningAttachmentPicker) return;
     // Keep Omoji open & visible as long as an alarm/timer is ringing or music is playing!
     if (AlarmService.activeRingingAlarm.value != null ||
         AlarmService.activeRingingTimer.value != null) {
@@ -633,10 +610,10 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
         ];
         for (final loc in scriptLocations) {
           if (File(loc).existsSync()) {
-            final res = await Process.run(
-              'python3',
-              [loc, text],
-            ).timeout(const Duration(seconds: 2));
+            final res = await Process.run('python3', [
+              loc,
+              text,
+            ]).timeout(const Duration(seconds: 2));
             if (res.exitCode == 0) {
               await LoggerService.info(
                 'Auto-paste command succeeded: omoji_paste.py ($loc)',
@@ -669,7 +646,7 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
           }
           await LoggerService.warn(
             'Auto-paste command failed: $label exited ${result.exitCode}: '
-            '${result.stderr}'
+                    '${result.stderr}'
                 .trim(),
           );
           debugPrint(
@@ -692,15 +669,20 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
 
       // On Wayland, xdotool can report success without sending keys to the
       // native target. Only use it on X11; ydotool needs the active daemon.
+      //
+      // NOTE: ydotool 0.1.x uses named key sequences (e.g. 'ctrl+v'), NOT the
+      // raw linux-keycode:value format ('29:1 47:1 47:0 29:0'). The old format
+      // causes ydotool 0.1.8 to misinterpret the leading digit of each argument
+      // as a key name and type the literal string "2442" instead of Ctrl+V.
       final pasteCommands = isWayland
           ? <(String, String, List<String>)>[
-              ('ydotool', 'ydotool', ['key', '29:1', '47:1', '47:0', '29:0']),
+              ('ydotool', 'ydotool', ['key', 'ctrl+v']),
               ('wtype', 'wtype', ['-M', 'ctrl', '-k', 'v', '-m', 'ctrl']),
             ]
           : <(String, String, List<String>)>[
               ('xdotool', 'xdotool', ['key', '--clearmodifiers', 'ctrl+v']),
               ('wtype', 'wtype', ['-M', 'ctrl', '-k', 'v', '-m', 'ctrl']),
-              ('ydotool', 'ydotool', ['key', '29:1', '47:1', '47:0', '29:0']),
+              ('ydotool', 'ydotool', ['key', 'ctrl+v']),
             ];
 
       for (final (label, executable, arguments) in pasteCommands) {
@@ -709,11 +691,11 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
 
       await runPasteTool('wtype text fallback', 'wtype', ['--', text]);
       if (!isWayland) {
-        await runPasteTool(
-          'xdotool text fallback',
-          'xdotool',
-          ['type', '--clearmodifiers', text],
-        );
+        await runPasteTool('xdotool text fallback', 'xdotool', [
+          'type',
+          '--clearmodifiers',
+          text,
+        ]);
       }
     } else if (Platform.isMacOS) {
       try {
@@ -736,14 +718,87 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
     }
   }
 
-  void _handleEmojiSelection(String emoji) async {
-    await Clipboard.setData(ClipboardData(text: emoji));
-    _lastClipboardText = emoji;
+  Future<bool> _setSelectionClipboard(String text) async {
+    try {
+      final isWayland =
+          Platform.isLinux &&
+          (Platform.environment['WAYLAND_DISPLAY']?.isNotEmpty == true ||
+              Platform.environment['XDG_SESSION_TYPE'] == 'wayland');
 
-    if (Platform.isLinux) {
-      try {
-        await Process.run('wl-copy', ['--', emoji]);
-      } catch (_) {}
+      if (isWayland) {
+        await Clipboard.setData(ClipboardData(text: text));
+
+        final copyProcess = await Process.start('wl-copy', [
+          '--type',
+          'text/plain;charset=utf-8',
+          '--',
+          text,
+        ]);
+        final stderr = StringBuffer();
+        final stdoutSubscription = copyProcess.stdout.listen((_) {});
+        final stderrSubscription = copyProcess.stderr
+            .transform(utf8.decoder)
+            .listen(stderr.write);
+        final copyExitCode = await copyProcess.exitCode.timeout(
+          const Duration(seconds: 2),
+          onTimeout: () {
+            copyProcess.kill();
+            throw TimeoutException('wl-copy did not start in time.');
+          },
+        );
+        await stdoutSubscription.cancel();
+        await stderrSubscription.cancel();
+        if (copyExitCode != 0) {
+          final errorMessage = stderr.toString().trim();
+          throw StateError(
+            'wl-copy exited with code $copyExitCode'
+            '${errorMessage.isEmpty ? '' : ': $errorMessage'}',
+          );
+        }
+
+        final verifyResult = await Process.run('wl-paste', [
+          '--no-newline',
+        ]).timeout(const Duration(seconds: 2));
+        if (verifyResult.exitCode != 0) {
+          final stderr = (verifyResult.stderr as String).trim();
+          throw StateError(
+            'wl-paste exited with code ${verifyResult.exitCode}'
+            '${stderr.isEmpty ? '' : ': $stderr'}',
+          );
+        }
+        if (verifyResult.stdout != text) {
+          throw StateError(
+            'Clipboard read-back did not match the selected text '
+            '(expected ${text.runes.length} characters, '
+            'received ${(verifyResult.stdout as String).runes.length}).',
+          );
+        }
+      } else {
+        await Clipboard.setData(ClipboardData(text: text));
+      }
+
+      _lastClipboardText = text;
+      return true;
+    } catch (error) {
+      await LoggerService.error('Clipboard update failed: $error');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Could not update the clipboard: $error. '
+              'Selection was not pasted.',
+            ),
+          ),
+        );
+      }
+      return false;
+    }
+  }
+
+  void _handleEmojiSelection(String emoji) async {
+    if (!isEmojiSelectionUnlocked) {
+      await _openPlansPage();
+      return;
     }
 
     setState(() {
@@ -760,15 +815,40 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
     await _clearOverlayMode();
     await _dismissWindowForPaste();
 
-    if (isFloating && wordToClear.isNotEmpty) {
-      EmojiPredictionService.requestAutofillBackspaces(wordToClear.length);
-    }
-
     try {
+      if (!await _setSelectionClipboard(emoji)) {
+        await _restoreWindowAfterClipboardFailure();
+        return;
+      }
+      if (isFloating && wordToClear.isNotEmpty) {
+        EmojiPredictionService.requestAutofillBackspaces(wordToClear.length);
+      }
       await _injectTextOrPaste(emoji);
     } finally {
       _isPastingSelection = false;
     }
+  }
+
+  Future<void> _openPlansPage() async {
+    final uri = Uri.parse(registrationUrl);
+    final command = Platform.isMacOS
+        ? ('open', [uri.toString()])
+        : Platform.isWindows
+        ? ('rundll32', ['url.dll,FileProtocolHandler', uri.toString()])
+        : ('xdg-open', [uri.toString()]);
+    try {
+      await Process.run(command.$1, command.$2);
+    } on ProcessException catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not open registration: $error')),
+        );
+      }
+    }
+  }
+
+  void _setAttachmentPickerOpen(bool isOpen) {
+    _isOpeningAttachmentPicker = isOpen;
   }
 
   Future<void> _loadClipboardSettings() async {
@@ -897,20 +977,26 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
   }
 
   void _handleClipboardSelection(String text) async {
-    await Clipboard.setData(ClipboardData(text: text));
-    _lastClipboardText = text;
-
-    if (Platform.isLinux) {
-      try {
-        await Process.run('wl-copy', ['--', text]);
-      } catch (_) {}
-    }
-
     await _dismissWindowForPaste();
     try {
+      if (!await _setSelectionClipboard(text)) {
+        await _restoreWindowAfterClipboardFailure();
+        return;
+      }
       await _injectTextOrPaste(text);
     } finally {
       _isPastingSelection = false;
+    }
+  }
+
+  Future<void> _restoreWindowAfterClipboardFailure() async {
+    try {
+      await windowManager.show();
+      await windowManager.focus();
+    } catch (error) {
+      await LoggerService.warn(
+        'Could not restore Omoji after clipboard failure: $error',
+      );
     }
   }
 
@@ -1327,9 +1413,7 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
                               }
                             },
                             decoration: InputDecoration(
-                              hintText: _selectedTab == 'emojis'
-                                  ? 'Search emojis...'
-                                  : 'Type here to search...',
+                              hintText: 'How are you feeling?',
                               hintStyle: TextStyle(
                                 color: textColor.withValues(alpha: 0.35),
                               ),
@@ -1380,6 +1464,9 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
                                     _focusNode.requestFocus();
                                   },
                                   onExport: _exportChat,
+                                  onAttachmentPickerChanged:
+                                      _setAttachmentPickerOpen,
+                                  onPurchaseLicense: _openPlansPage,
                                 )
                               : _selectedTab == 'clock'
                               ? ClockView(

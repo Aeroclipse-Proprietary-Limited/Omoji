@@ -21,7 +21,7 @@ description: |
 license: Proprietary
 contact: mailto:godlyttn@outlook.com
 website: https://aeroclipse-bw.web.app
-source-code: https://github.com/Aeroclipse-Proprietary-Limited/Omoji
+source-code: https://aeroclipse-bw.web.app
 issues: https://github.com/Aeroclipse-Proprietary-Limited/Omoji/issues
 icon: lib/assets/imgs/app-logo.png
 
@@ -56,6 +56,7 @@ parts:
       - python3          # drop if the bundled scripts don't need it (saves size)
       - libkeybinder-3.0-0
     override-build: |
+      export DART_DEFINES="$(printf 'OMOJI_DEVELOPER_BUILD=false' | base64 -w0)"
       craftctl default
 
       mkdir -p "$CRAFT_PART_INSTALL/lib/scripts" "$CRAFT_PART_INSTALL/lib/data"

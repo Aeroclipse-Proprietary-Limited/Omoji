@@ -7,20 +7,19 @@ Future<bool> showFullVersionPrompt(
   return await showDialog<bool>(
         context: context,
         builder: (context) => AlertDialog(
-          title: const Text('Looking for the full version?'),
+          title: const Text('Purchase a license'),
           content: Text(
-            '$feature is available in the full Omoji version. Was that an '
-            'accidental tap, or would you like to view the full version? '
-            'Donations are optional gifts and do not unlock features.',
+            '$feature is part of Omoji Premium. View the Omoji plans and '
+            'checkout options on the Aeroclipse website.',
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context, false),
-              child: const Text('Accidental tap'),
+              child: const Text('Not now'),
             ),
             FilledButton(
               onPressed: () => Navigator.pop(context, true),
-              child: const Text('View full version'),
+              child: const Text('Purchase a license'),
             ),
           ],
         ),

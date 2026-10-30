@@ -1633,46 +1633,90 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             horizontal: 16,
                             vertical: 14,
                           ),
-                          child: Row(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              CircleAvatar(
-                                radius: 22,
-                                backgroundColor: Theme.of(
-                                  context,
-                                ).colorScheme.primary.withValues(alpha: 0.2),
-                                backgroundImage: const AssetImage(
-                                  'lib/assets/imgs/acc pic.jpg',
-                                ),
-                              ),
-                              const SizedBox(width: 14),
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
+                              Row(
                                 children: [
-                                  Text(
-                                    'Kevin Manda',
-                                    style: TextStyle(
-                                      color: textColor,
-                                      fontSize: 15,
-                                      fontWeight: FontWeight.bold,
+                                  CircleAvatar(
+                                    radius: 22,
+                                    backgroundColor: Theme.of(
+                                      context,
+                                    ).colorScheme.primary.withValues(alpha: 0.2),
+                                    backgroundImage: const AssetImage(
+                                      'lib/assets/imgs/acc pic.jpg',
                                     ),
                                   ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    'Creator of Omoji',
-                                    style: TextStyle(
-                                      color: subtitleColor,
-                                      fontSize: 12,
+                                  const SizedBox(width: 14),
+                                  Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Kevin Manda',
+                                        style: TextStyle(
+                                          color: textColor,
+                                          fontSize: 15,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        'Creator of Omoji',
+                                        style: TextStyle(
+                                          color: subtitleColor,
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        'Aeroclipse Pty Ltd',
+                                        style: TextStyle(
+                                          color: Theme.of(context).colorScheme.primary,
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 14),
+                              const Divider(height: 1),
+                              const SizedBox(height: 12),
+                              Row(
+                                children: [
+                                  const Icon(Icons.coffee_rounded, color: Colors.amber, size: 20),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      'buy me a coffee',
+                                      style: TextStyle(color: textColor, fontSize: 14, fontWeight: FontWeight.w500),
                                     ),
                                   ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    'Aeroclipse Pty Ltd',
-                                    style: TextStyle(
-                                      color: Theme.of(
-                                        context,
-                                      ).colorScheme.primary,
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.bold,
+                                ],
+                              ),
+                              const SizedBox(height: 12),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: _buildDonationButton(
+                                      context: context,
+                                      label: 'PayPal',
+                                      icon: Icons.open_in_new_rounded,
+                                      color: Theme.of(context).colorScheme.primary,
+                                      isActive: false,
+                                      onTap: _openPayPalPayment,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: _buildDonationButton(
+                                      context: context,
+                                      label: 'ETH',
+                                      icon: Icons.currency_bitcoin_rounded,
+                                      color: Colors.amber[700]!,
+                                      isActive: false,
+                                      onTap: _copyEthWalletAddress,
                                     ),
                                   ),
                                 ],
@@ -1682,79 +1726,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         ),
                       ),
 
-                      const SizedBox(height: 24),
-
-                      // Section: Donation / Support
-                      Text(
-                        'Support Development',
-                        style: TextStyle(
-                          color: subtitleColor,
-                          fontSize: 13,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 0.5,
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      Container(
-                        width: double.infinity,
-                        decoration: BoxDecoration(
-                          color: cardBg,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: cardBorderColor),
-                        ),
-                        padding: const EdgeInsets.all(16),
-                        child: Column(
-                          children: [
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                const Icon(
-                                  Icons.coffee_rounded,
-                                  color: Colors.amber,
-                                  size: 20,
-                                ),
-                                const SizedBox(width: 8),
-                                Text(
-                                  'buy me a coffee',
-                                  style: TextStyle(
-                                    color: textColor,
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 16),
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: _buildDonationButton(
-                                    context: context,
-                                    label: 'PayPal',
-                                    icon: Icons.open_in_new_rounded,
-                                    color: Theme.of(
-                                      context,
-                                    ).colorScheme.primary,
-                                    isActive: false,
-                                    onTap: _openPayPalPayment,
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: _buildDonationButton(
-                                    context: context,
-                                    label: 'eth',
-                                    icon: Icons.currency_bitcoin_rounded,
-                                    color: Colors.amber[700]!,
-                                    isActive: false,
-                                    onTap: _copyEthWalletAddress,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
                           ],
                         ),
                       ),

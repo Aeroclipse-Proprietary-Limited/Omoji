@@ -1,10 +1,12 @@
 /* ─── Modal ───────────────────────────────────── */
 
 const modal   = document.getElementById("apply-modal");
-const openBtn = document.getElementById("open-apply-modal");
+const openBtns = document.querySelectorAll(".careers-apply-btn");
 const closeBtn = document.getElementById("close-apply-modal");
+let lastApplyTrigger = null;
 
-function openModal() {
+function openModal(event) {
+  lastApplyTrigger = event.currentTarget;
   modal.classList.add("is-open");
   document.body.style.overflow = "hidden";
   closeBtn.focus();
@@ -13,10 +15,10 @@ function openModal() {
 function closeModal() {
   modal.classList.remove("is-open");
   document.body.style.overflow = "";
-  openBtn.focus();
+  lastApplyTrigger?.focus();
 }
 
-openBtn.addEventListener("click", openModal);
+openBtns.forEach((button) => button.addEventListener("click", openModal));
 closeBtn.addEventListener("click", closeModal);
 
 // Close on backdrop click
@@ -125,4 +127,46 @@ if (reduceMotion || !("IntersectionObserver" in window)) {
   );
 
   revealElements.forEach((element) => revealObserver.observe(element));
+}
+
+// A restrained, cursor-following glow adds a little response on mouse devices.
+if (!reduceMotion && window.matchMedia("(hover: hover) and (pointer: fine)").matches) {
+  let pointerFrame = 0;
+  let pointerX = 0;
+  let pointerY = 0;
+
+  window.addEventListener("pointermove", (event) => {
+    if (event.pointerType !== "mouse" && event.pointerType !== "pen") return;
+    pointerX = event.clientX;
+    pointerY = event.clientY;
+    if (pointerFrame) return;
+
+    pointerFrame = requestAnimationFrame(() => {
+      document.documentElement.style.setProperty("--pointer-x", `${pointerX}px`);
+      document.documentElement.style.setProperty("--pointer-y", `${pointerY}px`);
+      document.body.classList.add("has-pointer-glow");
+      pointerFrame = 0;
+    });
+  }, { passive: true });
+
+  window.addEventListener("pointerout", (event) => {
+    if (event.relatedTarget === null) {
+      document.body.classList.remove("has-pointer-glow");
+    }
+  }, { passive: true });
+}
+
+// Touch controls and cards briefly swell on contact, then settle back.
+if (!reduceMotion) {
+  document.addEventListener("pointerdown", (event) => {
+    if (event.pointerType !== "touch") return;
+    const target = event.target.closest("a.button, button, .feature-card, .edition-card");
+    if (!target) return;
+
+    target.classList.remove("touch-bloom");
+    requestAnimationFrame(() => target.classList.add("touch-bloom"));
+    target.addEventListener("animationend", () => {
+      target.classList.remove("touch-bloom");
+    }, { once: true });
+  }, { passive: true });
 }

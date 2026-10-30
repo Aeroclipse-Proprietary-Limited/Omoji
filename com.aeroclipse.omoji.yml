@@ -19,7 +19,7 @@ modules:
     buildsystem: simple
     build-commands:
       # Build Flutter for Linux in release mode offline
-      - flutter build linux --release --offline --no-pub
+      - flutter build linux --release --offline --no-pub --dart-define=OMOJI_DEVELOPER_BUILD=false
       
       # Install the compiled binary into the Flatpak bin directory
       - install -Dm755 build/linux/x64/release/bundle/omoji /app/bin/omoji

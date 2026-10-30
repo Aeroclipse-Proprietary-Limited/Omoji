@@ -1,13 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:file_selector/file_selector.dart';
+import 'package:omoji/build_config.dart';
 import 'package:omoji/models/chat_message.dart';
 import 'package:omoji/models/quantum-network/quantum_network_service.dart';
+import 'package:omoji/widgets/full_version_prompt.dart';
 
 class ClipboardChatView extends StatefulWidget {
   final String initialPrompt;
   final List<ChatMessage> messages;
   final VoidCallback onBack;
   final VoidCallback onExport;
+  final ValueChanged<bool> onAttachmentPickerChanged;
+  final VoidCallback onPurchaseLicense;
 
   const ClipboardChatView({
     super.key,
@@ -15,6 +19,8 @@ class ClipboardChatView extends StatefulWidget {
     required this.messages,
     required this.onBack,
     required this.onExport,
+    required this.onAttachmentPickerChanged,
+    required this.onPurchaseLicense,
   });
 
   @override
@@ -40,6 +46,15 @@ class _ClipboardChatViewState extends State<ClipboardChatView> {
   }
 
   Future<void> _pickFile() async {
+    if (!isDeveloperBuild) {
+      final wantsLicense = await showFullVersionPrompt(
+        context,
+        feature: 'File attachments',
+      );
+      if (wantsLicense && mounted) widget.onPurchaseLicense();
+      return;
+    }
+    widget.onAttachmentPickerChanged(true);
     try {
       final file = await openFile();
       if (file == null || !mounted) return;
@@ -58,6 +73,8 @@ class _ClipboardChatViewState extends State<ClipboardChatView> {
           SnackBar(content: Text('Could not attach file: $error')),
         );
       }
+    } finally {
+      widget.onAttachmentPickerChanged(false);
     }
   }
 
@@ -286,9 +303,11 @@ class _ClipboardChatViewState extends State<ClipboardChatView> {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             IconButton(
-                              tooltip: 'Attach file',
-                              onPressed: _pickFile,
+                              tooltip: isDeveloperBuild
+                                  ? 'Attach file'
+                                  : 'Purchase a license to attach files',
                               icon: const Icon(Icons.attach_file_rounded),
+                              onPressed: _pickFile,
                             ),
                             if (_isAttachmentMenuHovered) ...[
                               IconButton(

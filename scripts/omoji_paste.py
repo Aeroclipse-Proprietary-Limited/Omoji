@@ -55,8 +55,13 @@ def try_wtype_text(text):
 
 def try_ydotool_paste():
     try:
+        # Use the named-key format supported by ydotool 0.1.x+.
+        # The raw linux-keycode:value format (e.g. '29:1 47:1 47:0 29:0') is NOT
+        # recognised by ydotool 0.1.8: it misinterprets the leading digit of each
+        # argument as a key name and types the literal string "2442" instead of
+        # sending Ctrl+V.
         res = subprocess.run(
-            ['ydotool', 'key', '29:1', '47:1', '47:0', '29:0'],
+            ['ydotool', 'key', 'ctrl+v'],
             capture_output=True,
         )
         return res.returncode == 0

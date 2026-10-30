@@ -81,93 +81,53 @@ if ! command -v flutter >/dev/null 2>&1; then
     fi
 fi
 
-echo "Building Omoji Linux release bundle..."
-flutter build linux --release --dart-define=OMOJI_DEVELOPER_BUILD=true
+echo "Building Omoji Premium Debian package..."
+OMOJI_DEVELOPER_BUILD=true scripts/build_deb.sh
 
-INSTALL_DIR="${HOME}/.local/lib/omoji"
-BIN_DIR="${HOME}/.local/bin"
-APP_DIR="${HOME}/.local/share/applications"
-ICON_BASE="${HOME}/.local/share/icons/hicolor"
-ICON_DIR_256="${ICON_BASE}/256x256/apps"
-PIXMAP_DIR="${HOME}/.local/share/pixmaps"
+DEB_FILE="${PWD}/build/debian/omoji_1.2.6_amd64.deb"
+if [ ! -f "${DEB_FILE}" ]; then
+    echo "Error: expected package was not created: ${DEB_FILE}" >&2
+    exit 1
+fi
+if ! command -v sudo >/dev/null 2>&1; then
+    echo "Error: sudo is required to install the system package." >&2
+    exit 1
+fi
 
-echo "Creating user directories..."
-mkdir -p "${INSTALL_DIR}"
-mkdir -p "${BIN_DIR}"
-mkdir -p "${APP_DIR}"
-mkdir -p "${ICON_DIR_256}"
-mkdir -p "${PIXMAP_DIR}"
+echo "Installing Premium package system-wide..."
+sudo dpkg -i "${DEB_FILE}"
+rm -f "${DEB_FILE}"
 
-echo "Installing release bundle into ${INSTALL_DIR}..."
-rm -rf "${INSTALL_DIR}"/*
-cp -r build/linux/x64/release/bundle/* "${INSTALL_DIR}/"
+# An older user-level installation may leave a higher-priority desktop entry
+# and PATH wrapper pointing at ~/.local/lib/omoji. Keep those launch points,
+# but redirect them to the newly installed system package.
+USER_BIN_DIR="${HOME}/.local/bin"
+USER_APP_DIR="${HOME}/.local/share/applications"
+mkdir -p "${USER_BIN_DIR}" "${USER_APP_DIR}"
 
-mkdir -p "${INSTALL_DIR}/lib/scripts"
-mkdir -p "${INSTALL_DIR}/lib/data"
-cp scripts/emoji_prediction_daemon.py scripts/omoji_paste.py "${INSTALL_DIR}/lib/scripts/"
-cp -r lib/data/* "${INSTALL_DIR}/lib/data/"
-
-echo "Creating binary executable wrapper in ${BIN_DIR}/omoji..."
-cat << EOF > "${BIN_DIR}/omoji"
+cat << 'EOF' > "${USER_BIN_DIR}/omoji"
 #!/bin/sh
-exec "${INSTALL_DIR}/omoji" "\$@"
+exec /usr/bin/omoji "$@"
 EOF
-chmod +x "${BIN_DIR}/omoji"
+chmod +x "${USER_BIN_DIR}/omoji"
 
-echo "Installing icons..."
-if [ -f "lib/assets/imgs/app-logo.png" ]; then
-    cp "lib/assets/imgs/app-logo.png" "${PIXMAP_DIR}/omoji.png"
-    cp "lib/assets/imgs/app-logo.png" "${ICON_DIR_256}/omoji.png"
-fi
-
-if [ -f "lib/assets/imgs/app-logo.jpg" ]; then
-    cp "lib/assets/imgs/app-logo.jpg" "${PIXMAP_DIR}/omoji.jpg"
-fi
-
-echo "Creating desktop launcher in ${APP_DIR}/omoji.desktop..."
-cat << EOF > "${APP_DIR}/omoji.desktop"
+cat << 'EOF' > "${USER_APP_DIR}/omoji.desktop"
 [Desktop Entry]
 Version=1.0
 Name=Omoji
 Comment=Acrylic emoji search and clipboard manager
-Exec=${BIN_DIR}/omoji
-Icon=${PIXMAP_DIR}/omoji.png
+Exec=/usr/bin/omoji
+Icon=omoji
 Terminal=false
 Type=Application
 Categories=Utility;
 StartupWMClass=com.aeroclipse.omoji
 EOF
-
-chmod +x "${APP_DIR}/omoji.desktop"
+chmod +x "${USER_APP_DIR}/omoji.desktop"
 
 if command -v update-desktop-database >/dev/null 2>&1; then
-    update-desktop-database "${APP_DIR}" >/dev/null 2>&1 || true
+    update-desktop-database "${USER_APP_DIR}" >/dev/null 2>&1 || true
 fi
 
-# Ensure the hicolor index declares the icon directory before refreshing its cache.
-if [ ! -f "${ICON_BASE}/index.theme" ] ||
-    ! grep -q '^\[256x256/apps\]$' "${ICON_BASE}/index.theme"; then
-    if [ -f "/usr/share/icons/hicolor/index.theme" ]; then
-        cp "/usr/share/icons/hicolor/index.theme" "${ICON_BASE}/index.theme"
-    else
-        cat << EOF > "${ICON_BASE}/index.theme"
-[Icon Theme]
-Name=Hicolor
-Comment=Fallback theme
-Directories=256x256/apps
-
-[256x256/apps]
-Size=256
-Context=Applications
-Type=Fixed
-EOF
-    fi
-fi
-
-if command -v gtk-update-icon-cache >/dev/null 2>&1; then
-    gtk-update-icon-cache -f -t "${ICON_BASE}" >/dev/null 2>&1 || true
-fi
-
-echo "Omoji user-level installation complete!"
-echo "Launcher: ${BIN_DIR}/omoji"
-echo "Desktop File: ${APP_DIR}/omoji.desktop"
+echo "Omoji Premium is installed. The generated .deb has been deleted."
+echo "Desktop and command-line launchers now use /usr/bin/omoji."
