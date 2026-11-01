@@ -13,9 +13,9 @@ One keyboard shortcut. Every emoji. Your full clipboard history. `Super + X` on 
 **[GitHub Releases →](https://github.com/Aeroclipse-Proprietary-Limited/Omoji/releases)**
 
 ```bash
-sudo apt install ./omoji_1.2.6_amd64.deb
+sudo apt install ./omoji_1.2.5_amd64.deb
 # or
-sudo dnf install ./omoji-1.2.6-1.x86_64.rpm
+sudo dnf install ./omoji-1.2.5-1.x86_64.rpm
 ```
 
 ---

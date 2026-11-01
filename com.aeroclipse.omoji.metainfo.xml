@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>com.aeroclipse.omoji</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>Proprietary</project_license>
+  <name>Omoji</name>
+  <summary>Glassmorphic desktop emoji picker and clipboard history manager</summary>
+  <description>
+    <p>A lightweight, glassmorphic desktop emoji picker and clipboard history manager built natively for Linux.</p>
+  </description>
+  <launchable type="desktop-id">com.aeroclipse.omoji.desktop</launchable>
+  <url type="homepage">https://github.com</url>
+  <developer_name>Aeroclipse Proprietary Limited</developer_name>
+  <releases>
+    <release version="1.2.6" date="2026-11-01" />
+  </releases>
+</component>

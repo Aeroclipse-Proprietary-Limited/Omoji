@@ -669,11 +669,9 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
 
       // On Wayland, xdotool can report success without sending keys to the
       // native target. Only use it on X11; ydotool needs the active daemon.
-      //
-      // NOTE: ydotool 0.1.x uses named key sequences (e.g. 'ctrl+v'), NOT the
-      // raw linux-keycode:value format ('29:1 47:1 47:0 29:0'). The old format
-      // causes ydotool 0.1.8 to misinterpret the leading digit of each argument
-      // as a key name and type the literal string "2442" instead of Ctrl+V.
+      // Keep ydotool's named 'ctrl+v' chord in sync with try_ydotool_paste in
+      // scripts/omoji_paste.py. Do not replace it with raw keycode arguments:
+      // ydotool 0.1.8 types their leading digits as "2442" instead of pasting.
       final pasteCommands = isWayland
           ? <(String, String, List<String>)>[
               ('ydotool', 'ydotool', ['key', 'ctrl+v']),
@@ -813,6 +811,8 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
     final wordToClear = _globalPredictionWord;
 
     await _clearOverlayMode();
+    // Keep this order: hide Omoji and let the previous target regain focus
+    // before setting the clipboard and injecting the paste shortcut.
     await _dismissWindowForPaste();
 
     try {
@@ -977,6 +977,8 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
   }
 
   void _handleClipboardSelection(String text) async {
+    // Match emoji selection: restore target focus before changing the clipboard
+    // and sending the paste shortcut.
     await _dismissWindowForPaste();
     try {
       if (!await _setSelectionClipboard(text)) {
@@ -1399,6 +1401,10 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
                             controller: _searchController,
                             focusNode: _focusNode,
                             autofocus: true,
+                            // Search field is locked for the stable release;
+                            // emoji selection is the paid entry-point that
+                            // drives registration and subscription.
+                            readOnly: !isEmojiSelectionUnlocked,
                             style: TextStyle(color: textColor),
                             onSubmitted: (val) {
                               if (_enableEmojiPredictions &&
