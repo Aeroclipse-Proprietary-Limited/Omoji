@@ -2,6 +2,7 @@
 
 import 'dart:async';
 import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:omoji/models/alarm_item.dart';
 import 'package:omoji/models/todo_item.dart';
@@ -28,6 +29,7 @@ class AlarmService {
   );
   static final ValueNotifier<String?> activeRingingTimer = ValueNotifier(null);
   static final ValueNotifier<String?> silencedAlarmNotice = ValueNotifier(null);
+  static bool _initializedLogged = false;
 
   static Future<void> init(
     List<AlarmItem> alarms, {
@@ -44,9 +46,12 @@ class AlarmService {
     if (loopIntervalSeconds != null)
       audioLoopIntervalSeconds = loopIntervalSeconds.clamp(10, 93);
     if (enableDucking != null) enableAudioDucking = enableDucking;
-    LoggerService.info(
-      'AlarmService initialized with ${_alarms.length} alarm(s) and ${_todos.length} todo(s).',
-    );
+    if (!_initializedLogged) {
+      _initializedLogged = true;
+      LoggerService.info(
+        'AlarmService initialized with ${_alarms.length} alarm(s) and ${_todos.length} todo(s).',
+      );
+    }
     _startMonitoring();
   }
 

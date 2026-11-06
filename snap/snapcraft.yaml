@@ -23,7 +23,7 @@ contact: mailto:godlyttn@outlook.com
 website: https://aeroclipse-bw.web.app
 source-code: https://aeroclipse-bw.web.app
 issues: https://github.com/Aeroclipse-Proprietary-Limited/Omoji/issues
-icon: lib/assets/imgs/app-logo.png
+icon: lib/assets/imgs/App logo (dark).png
 
 grade: stable
 confinement: strict

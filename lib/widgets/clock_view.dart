@@ -3,7 +3,9 @@ import 'package:omoji/main.dart';
 import 'package:omoji/models/alarm_item.dart';
 import 'package:omoji/models/todo_item.dart';
 import 'package:omoji/services/alarm_service.dart';
+import 'package:omoji/services/account_service.dart';
 import 'package:omoji/services/app_settings.dart';
+import 'package:omoji/services/calendar_import_service.dart';
 import 'package:omoji/services/stopwatch_service.dart';
 import 'package:omoji/services/timer_service.dart';
 
@@ -29,6 +31,111 @@ class _ClockViewState extends State<ClockView> {
   String _subTab = 'alarms'; // 'alarms', 'stopwatch', 'timer', 'todo'
   late String _todoFilter; // initialized from todoDefaultViewNotifier
   final Set<String> _expandedTodoIds = {};
+
+  Future<void> _showNotesOverview(TodoItem todo) async {
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(todo.title),
+        content: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 420, maxHeight: 360),
+          child: SingleChildScrollView(
+            child: SelectableText(
+              todo.description.trim().isEmpty
+                  ? 'No additional details provided.'
+                  : todo.description,
+              style: const TextStyle(height: 1.5),
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _rescheduleOverdueTodo(TodoItem todo) async {
+    final choice = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Reschedule overdue event?'),
+        content: Text(
+          '“${todo.title}” is overdue. Choose a new date and time.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, 'tomorrow'),
+            child: const Text('Reschedule +24 hours'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, 'custom'),
+            child: const Text('Choose date & time'),
+          ),
+        ],
+      ),
+    );
+    if (!mounted || choice == null) return;
+    if (choice == 'custom') {
+      _showAddEditTodoDialog(todo);
+      return;
+    }
+    final updated = List<TodoItem>.from(widget.todos);
+    todo.targetDateTime = DateTime.now().add(const Duration(hours: 24));
+    todo.hasNotified = false;
+    widget.onTodosChanged(updated);
+    AppSettings.saveSettings(todos: updated);
+    AlarmService.updateTodos(updated);
+    if (mounted) setState(() {});
+  }
+
+  void _toggleTodoCompletion(TodoItem todo) {
+    final isCompleted = !todo.isCompleted;
+    setState(() {
+      todo.isCompleted = isCompleted;
+      todo.completedAt = isCompleted ? DateTime.now() : null;
+    });
+    widget.onTodosChanged(widget.todos);
+    AppSettings.saveSettings(todos: widget.todos);
+    AlarmService.updateTodos(widget.todos);
+  }
+
+  Future<void> _importCalendarEvents() async {
+    if (!AccountService.isAccountAttached) {
+      return;
+    }
+
+    final imported = await CalendarImportService.pickAndImport();
+    if (!mounted || imported == null) return;
+    if (imported.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No calendar events were found in that file.'),
+        ),
+      );
+      return;
+    }
+    final updated = List<TodoItem>.from(widget.todos)..addAll(imported);
+    widget.onTodosChanged(updated);
+    AppSettings.saveSettings(todos: updated);
+    AlarmService.updateTodos(updated);
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Imported ${imported.length} calendar event${imported.length == 1 ? '' : 's'}.',
+          ),
+        ),
+      );
+    }
+  }
 
   @override
   void initState() {
@@ -63,7 +170,9 @@ class _ClockViewState extends State<ClockView> {
 
             return AlertDialog(
               backgroundColor: isDark ? const Color(0xFF2E2E2E) : Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
               title: const Text('Add Alarm', style: TextStyle(fontSize: 16)),
               content: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -82,7 +191,10 @@ class _ClockViewState extends State<ClockView> {
                     },
                     borderRadius: BorderRadius.circular(12),
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 12,
+                      ),
                       decoration: BoxDecoration(
                         color: primaryColor.withValues(alpha: 0.15),
                         border: Border.all(color: primaryColor),
@@ -114,22 +226,28 @@ class _ClockViewState extends State<ClockView> {
                       Text(
                         'Auto-silence after:',
                         style: TextStyle(
-                            fontSize: 12,
-                            color: isDark ? Colors.white70 : Colors.black87),
+                          fontSize: 12,
+                          color: isDark ? Colors.white70 : Colors.black87,
+                        ),
                       ),
                       DropdownButton<int>(
                         value: autoSilenceMins,
                         isDense: true,
-                        dropdownColor:
-                            isDark ? const Color(0xFF3A3A3A) : Colors.white,
+                        dropdownColor: isDark
+                            ? const Color(0xFF3A3A3A)
+                            : Colors.white,
                         style: TextStyle(
-                            color: isDark ? Colors.white : Colors.black87,
-                            fontSize: 12),
+                          color: isDark ? Colors.white : Colors.black87,
+                          fontSize: 12,
+                        ),
                         items: const [
                           DropdownMenuItem(value: 1, child: Text('1 min')),
                           DropdownMenuItem(value: 2, child: Text('2 mins')),
                           DropdownMenuItem(value: 3, child: Text('3 mins')),
-                          DropdownMenuItem(value: 5, child: Text('5 mins (Default)')),
+                          DropdownMenuItem(
+                            value: 5,
+                            child: Text('5 mins (Default)'),
+                          ),
                           DropdownMenuItem(value: 10, child: Text('10 mins')),
                           DropdownMenuItem(value: 15, child: Text('15 mins')),
                           DropdownMenuItem(value: 30, child: Text('30 mins')),
@@ -156,9 +274,20 @@ class _ClockViewState extends State<ClockView> {
                             padding: const EdgeInsets.symmetric(horizontal: 3),
                             child: ChoiceChip(
                               showCheckmark: false,
-                              label: Text(dayNames[idx], style: TextStyle(fontSize: 12, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal)),
+                              label: Text(
+                                dayNames[idx],
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: isSelected
+                                      ? FontWeight.bold
+                                      : FontWeight.normal,
+                                ),
+                              ),
                               selected: isSelected,
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 2,
+                              ),
                               labelPadding: EdgeInsets.zero,
                               onSelected: (val) {
                                 setDialogState(() {
@@ -187,9 +316,20 @@ class _ClockViewState extends State<ClockView> {
                             padding: const EdgeInsets.symmetric(horizontal: 3),
                             child: ChoiceChip(
                               showCheckmark: false,
-                              label: Text(dayNames[dayIdx], style: TextStyle(fontSize: 12, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal)),
+                              label: Text(
+                                dayNames[dayIdx],
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: isSelected
+                                      ? FontWeight.bold
+                                      : FontWeight.normal,
+                                ),
+                              ),
                               selected: isSelected,
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 2,
+                              ),
                               labelPadding: EdgeInsets.zero,
                               onSelected: (val) {
                                 setDialogState(() {
@@ -214,10 +354,15 @@ class _ClockViewState extends State<ClockView> {
               actions: [
                 TextButton(
                   onPressed: () => Navigator.pop(context),
-                  child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+                  child: const Text(
+                    'Cancel',
+                    style: TextStyle(color: Colors.grey),
+                  ),
                 ),
                 ElevatedButton(
-                  style: ElevatedButton.styleFrom(backgroundColor: primaryColor),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: primaryColor,
+                  ),
                   onPressed: () {
                     final timeHHmm =
                         '${selectedTime.hour.toString().padLeft(2, '0')}:${selectedTime.minute.toString().padLeft(2, '0')}';
@@ -229,13 +374,17 @@ class _ClockViewState extends State<ClockView> {
                       repeatDays: selectedDays,
                       autoSilenceMinutes: autoSilenceMins,
                     );
-                    final updated = List<AlarmItem>.from(widget.alarms)..add(newAlarm);
+                    final updated = List<AlarmItem>.from(widget.alarms)
+                      ..add(newAlarm);
                     widget.onAlarmsChanged(updated);
                     AppSettings.saveSettings(alarms: updated);
                     AlarmService.updateAlarms(updated);
                     Navigator.pop(context);
                   },
-                  child: const Text('Save', style: TextStyle(color: Colors.white)),
+                  child: const Text(
+                    'Save',
+                    style: TextStyle(color: Colors.white),
+                  ),
                 ),
               ],
             );
@@ -248,8 +397,11 @@ class _ClockViewState extends State<ClockView> {
   // --- To-Do / Event Reminder Add/Edit Dialog ---
   void _showAddEditTodoDialog([TodoItem? existing]) async {
     final titleController = TextEditingController(text: existing?.title ?? '');
-    final descController = TextEditingController(text: existing?.description ?? '');
-    DateTime selectedDateTime = existing?.targetDateTime ?? DateTime.now().add(const Duration(days: 7));
+    final descController = TextEditingController(
+      text: existing?.description ?? '',
+    );
+    DateTime selectedDateTime =
+        existing?.targetDateTime ?? DateTime.now().add(const Duration(days: 7));
     String selectedRecurrence = existing?.recurrence ?? 'none';
 
     await showDialog(
@@ -268,14 +420,22 @@ class _ClockViewState extends State<ClockView> {
 
             return AlertDialog(
               backgroundColor: isDark ? const Color(0xFF2E2E2E) : Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
               title: Row(
                 children: [
                   Icon(Icons.event_note_rounded, color: primaryColor),
                   const SizedBox(width: 8),
                   Text(
-                    existing == null ? 'Add Event Reminder' : 'Edit Event Reminder',
-                    style: TextStyle(fontSize: 16, color: textColor, fontWeight: FontWeight.bold),
+                    existing == null
+                        ? 'Add Event Reminder'
+                        : 'Edit Event Reminder',
+                    style: TextStyle(
+                      fontSize: 16,
+                      color: textColor,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ],
               ),
@@ -290,7 +450,9 @@ class _ClockViewState extends State<ClockView> {
                       decoration: InputDecoration(
                         labelText: 'Event Title / Task',
                         hintText: 'e.g. Meeting next week, Doctor appointment',
-                        labelStyle: TextStyle(color: textColor.withValues(alpha: 0.7)),
+                        labelStyle: TextStyle(
+                          color: textColor.withValues(alpha: 0.7),
+                        ),
                         border: const OutlineInputBorder(),
                         isDense: true,
                       ),
@@ -303,39 +465,82 @@ class _ClockViewState extends State<ClockView> {
                       decoration: InputDecoration(
                         labelText: 'Description (Optional)',
                         hintText: 'Add notes or location info',
-                        labelStyle: TextStyle(color: textColor.withValues(alpha: 0.7)),
+                        labelStyle: TextStyle(
+                          color: textColor.withValues(alpha: 0.7),
+                        ),
                         border: const OutlineInputBorder(),
                         isDense: true,
                       ),
                     ),
                     const SizedBox(height: 16),
+                    if (AccountService.isAccountAttached) ...[
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: _importCalendarEvents,
+                          icon: const Icon(Icons.file_open_outlined, size: 16),
+                          label: const Text(
+                            'Import calendar events (.ics / .csv)',
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                    ],
                     Text(
                       'Quick Presets:',
-                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: textColor.withValues(alpha: 0.7)),
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: textColor.withValues(alpha: 0.7),
+                      ),
                     ),
                     const SizedBox(height: 6),
                     Wrap(
                       spacing: 6,
                       runSpacing: 4,
                       children: [
-                        _buildPresetChip('+1 Day', const Duration(days: 1), selectedDateTime, (newDate) {
-                          setDialogState(() => selectedDateTime = newDate);
-                        }),
-                        _buildPresetChip('+1 Week', const Duration(days: 7), selectedDateTime, (newDate) {
-                          setDialogState(() => selectedDateTime = newDate);
-                        }),
-                        _buildPresetChip('+2 Weeks', const Duration(days: 14), selectedDateTime, (newDate) {
-                          setDialogState(() => selectedDateTime = newDate);
-                        }),
-                        _buildPresetChip('+1 Month', const Duration(days: 30), selectedDateTime, (newDate) {
-                          setDialogState(() => selectedDateTime = newDate);
-                        }),
+                        _buildPresetChip(
+                          '+1 Day',
+                          const Duration(days: 1),
+                          selectedDateTime,
+                          (newDate) {
+                            setDialogState(() => selectedDateTime = newDate);
+                          },
+                        ),
+                        _buildPresetChip(
+                          '+1 Week',
+                          const Duration(days: 7),
+                          selectedDateTime,
+                          (newDate) {
+                            setDialogState(() => selectedDateTime = newDate);
+                          },
+                        ),
+                        _buildPresetChip(
+                          '+2 Weeks',
+                          const Duration(days: 14),
+                          selectedDateTime,
+                          (newDate) {
+                            setDialogState(() => selectedDateTime = newDate);
+                          },
+                        ),
+                        _buildPresetChip(
+                          '+1 Month',
+                          const Duration(days: 30),
+                          selectedDateTime,
+                          (newDate) {
+                            setDialogState(() => selectedDateTime = newDate);
+                          },
+                        ),
                       ],
                     ),
                     const SizedBox(height: 14),
                     Text(
                       'Event Date & Time:',
-                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: textColor.withValues(alpha: 0.7)),
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: textColor.withValues(alpha: 0.7),
+                      ),
                     ),
                     const SizedBox(height: 6),
                     Row(
@@ -344,17 +549,35 @@ class _ClockViewState extends State<ClockView> {
                           child: OutlinedButton.icon(
                             style: OutlinedButton.styleFrom(
                               foregroundColor: primaryColor,
-                              side: BorderSide(color: primaryColor.withValues(alpha: 0.5)),
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                              side: BorderSide(
+                                color: primaryColor.withValues(alpha: 0.5),
+                              ),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 10,
+                              ),
                             ),
-                            icon: const Icon(Icons.calendar_today_rounded, size: 16),
-                            label: Text(dateFormatted, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                            icon: const Icon(
+                              Icons.calendar_today_rounded,
+                              size: 16,
+                            ),
+                            label: Text(
+                              dateFormatted,
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
                             onPressed: () async {
                               final pickedDate = await showDatePicker(
                                 context: context,
                                 initialDate: selectedDateTime,
-                                firstDate: DateTime.now().subtract(const Duration(days: 1)),
-                                lastDate: DateTime.now().add(const Duration(days: 365 * 5)),
+                                firstDate: DateTime.now().subtract(
+                                  const Duration(days: 1),
+                                ),
+                                lastDate: DateTime.now().add(
+                                  const Duration(days: 365 * 5),
+                                ),
                               );
                               if (pickedDate != null) {
                                 setDialogState(() {
@@ -375,11 +598,25 @@ class _ClockViewState extends State<ClockView> {
                           child: OutlinedButton.icon(
                             style: OutlinedButton.styleFrom(
                               foregroundColor: primaryColor,
-                              side: BorderSide(color: primaryColor.withValues(alpha: 0.5)),
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                              side: BorderSide(
+                                color: primaryColor.withValues(alpha: 0.5),
+                              ),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 10,
+                              ),
                             ),
-                            icon: const Icon(Icons.access_time_rounded, size: 16),
-                            label: Text(timeFormatted, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                            icon: const Icon(
+                              Icons.access_time_rounded,
+                              size: 16,
+                            ),
+                            label: Text(
+                              timeFormatted,
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
                             onPressed: () async {
                               final pickedTime = await showTimePicker(
                                 context: context,
@@ -407,24 +644,48 @@ class _ClockViewState extends State<ClockView> {
                     const SizedBox(height: 14),
                     Text(
                       'Recurrence / Repeat:',
-                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: textColor.withValues(alpha: 0.7)),
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: textColor.withValues(alpha: 0.7),
+                      ),
                     ),
                     const SizedBox(height: 6),
                     DropdownButtonFormField<String>(
                       initialValue: selectedRecurrence,
-                      dropdownColor: isDark ? const Color(0xFF2C2C2C) : Colors.white,
+                      dropdownColor: isDark
+                          ? const Color(0xFF2C2C2C)
+                          : Colors.white,
                       style: TextStyle(color: textColor, fontSize: 13),
                       decoration: const InputDecoration(
                         border: OutlineInputBorder(),
                         isDense: true,
-                        contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                        contentPadding: EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 8,
+                        ),
                       ),
                       items: const [
-                        DropdownMenuItem(value: 'none', child: Text('Does not repeat')),
-                        DropdownMenuItem(value: 'daily', child: Text('Every day (Daily)')),
-                        DropdownMenuItem(value: 'weekly', child: Text('Every week (Weekly)')),
-                        DropdownMenuItem(value: 'monthly', child: Text('Every month (Monthly)')),
-                        DropdownMenuItem(value: 'yearly', child: Text('Every year (Yearly)')),
+                        DropdownMenuItem(
+                          value: 'none',
+                          child: Text('Does not repeat'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'daily',
+                          child: Text('Every day (Daily)'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'weekly',
+                          child: Text('Every week (Weekly)'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'monthly',
+                          child: Text('Every month (Monthly)'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'yearly',
+                          child: Text('Every year (Yearly)'),
+                        ),
                       ],
                       onChanged: (val) {
                         if (val != null) {
@@ -438,10 +699,15 @@ class _ClockViewState extends State<ClockView> {
               actions: [
                 TextButton(
                   onPressed: () => Navigator.pop(context),
-                  child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+                  child: const Text(
+                    'Cancel',
+                    style: TextStyle(color: Colors.grey),
+                  ),
                 ),
                 ElevatedButton(
-                  style: ElevatedButton.styleFrom(backgroundColor: primaryColor),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: primaryColor,
+                  ),
                   onPressed: () {
                     final title = titleController.text.trim();
                     if (title.isEmpty) return;
@@ -469,7 +735,10 @@ class _ClockViewState extends State<ClockView> {
                     AlarmService.updateTodos(updated);
                     Navigator.pop(context);
                   },
-                  child: const Text('Save Event', style: TextStyle(color: Colors.white)),
+                  child: const Text(
+                    'Save Event',
+                    style: TextStyle(color: Colors.white),
+                  ),
                 ),
               ],
             );
@@ -479,7 +748,12 @@ class _ClockViewState extends State<ClockView> {
     );
   }
 
-  Widget _buildPresetChip(String label, Duration duration, DateTime currentSelection, Function(DateTime) onSelect) {
+  Widget _buildPresetChip(
+    String label,
+    Duration duration,
+    DateTime currentSelection,
+    Function(DateTime) onSelect,
+  ) {
     final primaryColor = Theme.of(context).colorScheme.primary;
     return InkWell(
       onTap: () {
@@ -495,7 +769,11 @@ class _ClockViewState extends State<ClockView> {
         ),
         child: Text(
           label,
-          style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: primaryColor),
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.bold,
+            color: primaryColor,
+          ),
         ),
       ),
     );
@@ -510,10 +788,10 @@ class _ClockViewState extends State<ClockView> {
       canRequestFocus: false,
       child: InkWell(
         onTap: () => setState(() {
-            _subTab = id;
-            // Reset to the user's preferred default view each time they open To-Do
-            if (id == 'todo') _todoFilter = todoDefaultViewNotifier.value;
-          }),
+          _subTab = id;
+          // Reset to the user's preferred default view each time they open To-Do
+          if (id == 'todo') _todoFilter = todoDefaultViewNotifier.value;
+        }),
         borderRadius: BorderRadius.circular(8),
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
@@ -522,21 +800,31 @@ class _ClockViewState extends State<ClockView> {
                 ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.2)
                 : Colors.transparent,
             border: Border.all(
-              color: isActive ? Theme.of(context).colorScheme.primary : Colors.transparent,
+              color: isActive
+                  ? Theme.of(context).colorScheme.primary
+                  : Colors.transparent,
             ),
             borderRadius: BorderRadius.circular(8),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(icon, size: 14, color: isActive ? Theme.of(context).colorScheme.primary : textColor.withValues(alpha: 0.6)),
+              Icon(
+                icon,
+                size: 14,
+                color: isActive
+                    ? Theme.of(context).colorScheme.primary
+                    : textColor.withValues(alpha: 0.6),
+              ),
               const SizedBox(width: 5),
               Text(
                 label,
                 style: TextStyle(
                   fontSize: 12,
                   fontWeight: isActive ? FontWeight.bold : FontWeight.w500,
-                  color: isActive ? Theme.of(context).colorScheme.primary : textColor.withValues(alpha: 0.7),
+                  color: isActive
+                      ? Theme.of(context).colorScheme.primary
+                      : textColor.withValues(alpha: 0.7),
                 ),
               ),
             ],
@@ -567,7 +855,11 @@ class _ClockViewState extends State<ClockView> {
             const SizedBox(width: 6),
             _buildSubTabButton('stopwatch', 'Stopwatch', Icons.timer_outlined),
             const SizedBox(width: 6),
-            _buildSubTabButton('timer', 'Timer', Icons.hourglass_bottom_rounded),
+            _buildSubTabButton(
+              'timer',
+              'Timer',
+              Icons.hourglass_bottom_rounded,
+            ),
             const SizedBox(width: 6),
             _buildSubTabButton('todo', 'To-Do', Icons.event_note_rounded),
           ],
@@ -579,10 +871,10 @@ class _ClockViewState extends State<ClockView> {
           child: _subTab == 'alarms'
               ? _buildAlarmsView(cardBg, cardBorder, textColor)
               : _subTab == 'stopwatch'
-                  ? _buildStopwatchView(cardBg, cardBorder, textColor)
-                  : _subTab == 'timer'
-                      ? _buildTimerView(cardBg, cardBorder, textColor)
-                      : _buildTodoView(cardBg, cardBorder, textColor),
+              ? _buildStopwatchView(cardBg, cardBorder, textColor)
+              : _subTab == 'timer'
+              ? _buildTimerView(cardBg, cardBorder, textColor)
+              : _buildTodoView(cardBg, cardBorder, textColor),
         ),
       ],
     );
@@ -604,7 +896,11 @@ class _ClockViewState extends State<ClockView> {
               ),
             ),
             IconButton(
-              icon: Icon(Icons.add_circle_outline, color: Theme.of(context).colorScheme.primary, size: 20),
+              icon: Icon(
+                Icons.add_circle_outline,
+                color: Theme.of(context).colorScheme.primary,
+                size: 20,
+              ),
               onPressed: _showAddAlarmDialog,
               tooltip: 'Add Alarm',
             ),
@@ -633,7 +929,10 @@ class _ClockViewState extends State<ClockView> {
                         border: Border.all(color: cardBorder),
                         borderRadius: BorderRadius.circular(10),
                       ),
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 10,
+                      ),
                       child: Row(
                         children: [
                           Expanded(
@@ -664,7 +963,10 @@ class _ClockViewState extends State<ClockView> {
                                       '• ${alarm.repeatSummary} (${alarm.autoSilenceMinutes}m auto-silence)',
                                       style: TextStyle(
                                         fontSize: 11,
-                                        color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.8),
+                                        color: Theme.of(context)
+                                            .colorScheme
+                                            .primary
+                                            .withValues(alpha: 0.8),
                                       ),
                                     ),
                                   ],
@@ -674,7 +976,9 @@ class _ClockViewState extends State<ClockView> {
                           ),
                           Switch(
                             value: alarm.isEnabled,
-                            activeThumbColor: Theme.of(context).colorScheme.primary,
+                            activeThumbColor: Theme.of(
+                              context,
+                            ).colorScheme.primary,
                             onChanged: (val) {
                               setState(() {
                                 alarm.isEnabled = val;
@@ -688,8 +992,9 @@ class _ClockViewState extends State<ClockView> {
                             icon: const Icon(Icons.delete_outline, size: 18),
                             color: Colors.redAccent.withValues(alpha: 0.7),
                             onPressed: () {
-                              final updated = List<AlarmItem>.from(widget.alarms)
-                                ..removeAt(index);
+                              final updated = List<AlarmItem>.from(
+                                widget.alarms,
+                              )..removeAt(index);
                               widget.onAlarmsChanged(updated);
                               AppSettings.saveSettings(alarms: updated);
                               AlarmService.updateAlarms(updated);
@@ -723,7 +1028,10 @@ class _ClockViewState extends State<ClockView> {
                   children: [
                     const SizedBox(height: 10),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24,
+                        vertical: 16,
+                      ),
                       decoration: BoxDecoration(
                         color: cardBg,
                         border: Border.all(color: cardBorder),
@@ -751,23 +1059,31 @@ class _ClockViewState extends State<ClockView> {
                             foregroundColor: Colors.white,
                           ),
                           onPressed: StopwatchService.toggle,
-                          icon: Icon(isRunning ? Icons.pause : Icons.play_arrow),
+                          icon: Icon(
+                            isRunning ? Icons.pause : Icons.play_arrow,
+                          ),
                           label: Text(isRunning ? 'Pause' : 'Start'),
                         ),
                         const SizedBox(width: 10),
                         ElevatedButton.icon(
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.white.withValues(alpha: 0.1),
+                            backgroundColor: Colors.white.withValues(
+                              alpha: 0.1,
+                            ),
                             foregroundColor: textColor,
                           ),
-                          onPressed: isRunning ? StopwatchService.recordLap : null,
+                          onPressed: isRunning
+                              ? StopwatchService.recordLap
+                              : null,
                           icon: const Icon(Icons.flag_outlined, size: 18),
                           label: const Text('Lap'),
                         ),
                         const SizedBox(width: 10),
                         ElevatedButton.icon(
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.redAccent.withValues(alpha: 0.2),
+                            backgroundColor: Colors.redAccent.withValues(
+                              alpha: 0.2,
+                            ),
                             foregroundColor: Colors.redAccent,
                           ),
                           onPressed: StopwatchService.reset,
@@ -782,7 +1098,10 @@ class _ClockViewState extends State<ClockView> {
                           ? Center(
                               child: Text(
                                 'No laps recorded',
-                                style: TextStyle(color: textColor.withValues(alpha: 0.4), fontSize: 12),
+                                style: TextStyle(
+                                  color: textColor.withValues(alpha: 0.4),
+                                  fontSize: 12,
+                                ),
                               ),
                             )
                           : ListView.builder(
@@ -790,14 +1109,21 @@ class _ClockViewState extends State<ClockView> {
                               itemBuilder: (context, index) {
                                 return Container(
                                   margin: const EdgeInsets.only(bottom: 6),
-                                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 14,
+                                    vertical: 6,
+                                  ),
                                   decoration: BoxDecoration(
                                     color: cardBg,
                                     borderRadius: BorderRadius.circular(8),
                                   ),
                                   child: Text(
                                     lapsList[index],
-                                    style: TextStyle(color: textColor, fontSize: 13, fontFamily: 'monospace'),
+                                    style: TextStyle(
+                                      color: textColor,
+                                      fontSize: 13,
+                                      fontFamily: 'monospace',
+                                    ),
                                   ),
                                 );
                               },
@@ -834,9 +1160,15 @@ class _ClockViewState extends State<ClockView> {
     final initialMinutes = (initialDuration % 3600) ~/ 60;
     final initialSeconds = initialDuration % 60;
 
-    final hoursController = TextEditingController(text: initialHours.toString());
-    final minutesController = TextEditingController(text: initialMinutes.toString());
-    final secondsController = TextEditingController(text: initialSeconds.toString());
+    final hoursController = TextEditingController(
+      text: initialHours.toString(),
+    );
+    final minutesController = TextEditingController(
+      text: initialMinutes.toString(),
+    );
+    final secondsController = TextEditingController(
+      text: initialSeconds.toString(),
+    );
 
     await showDialog(
       context: context,
@@ -848,12 +1180,17 @@ class _ClockViewState extends State<ClockView> {
 
         return AlertDialog(
           backgroundColor: cardBg,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
           title: Row(
             children: [
               Icon(Icons.timer_outlined, color: primaryColor),
               const SizedBox(width: 8),
-              Text('Set Custom Timer', style: TextStyle(color: textColor, fontSize: 16)),
+              Text(
+                'Set Custom Timer',
+                style: TextStyle(color: textColor, fontSize: 16),
+              ),
             ],
           ),
           content: Column(
@@ -861,23 +1198,55 @@ class _ClockViewState extends State<ClockView> {
             children: [
               Text(
                 'Enter duration (Hours, Minutes, Seconds):',
-                style: TextStyle(color: textColor.withValues(alpha: 0.7), fontSize: 12),
+                style: TextStyle(
+                  color: textColor.withValues(alpha: 0.7),
+                  fontSize: 12,
+                ),
               ),
               const SizedBox(height: 16),
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  _buildTimeUnitInput(hoursController, 'Hours', textColor, primaryColor),
+                  _buildTimeUnitInput(
+                    hoursController,
+                    'Hours',
+                    textColor,
+                    primaryColor,
+                  ),
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 4),
-                    child: Text(':', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: textColor)),
+                    child: Text(
+                      ':',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: textColor,
+                      ),
+                    ),
                   ),
-                  _buildTimeUnitInput(minutesController, 'Mins', textColor, primaryColor),
+                  _buildTimeUnitInput(
+                    minutesController,
+                    'Mins',
+                    textColor,
+                    primaryColor,
+                  ),
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 4),
-                    child: Text(':', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: textColor)),
+                    child: Text(
+                      ':',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: textColor,
+                      ),
+                    ),
                   ),
-                  _buildTimeUnitInput(secondsController, 'Secs', textColor, primaryColor),
+                  _buildTimeUnitInput(
+                    secondsController,
+                    'Secs',
+                    textColor,
+                    primaryColor,
+                  ),
                 ],
               ),
             ],
@@ -910,18 +1279,33 @@ class _ClockViewState extends State<ClockView> {
     );
   }
 
-  Widget _buildTimeUnitInput(TextEditingController controller, String label, Color textColor, Color primaryColor) {
+  Widget _buildTimeUnitInput(
+    TextEditingController controller,
+    String label,
+    Color textColor,
+    Color primaryColor,
+  ) {
     return SizedBox(
       width: 65,
       child: TextField(
         controller: controller,
         keyboardType: TextInputType.number,
         textAlign: TextAlign.center,
-        style: TextStyle(color: textColor, fontSize: 18, fontWeight: FontWeight.bold),
+        style: TextStyle(
+          color: textColor,
+          fontSize: 18,
+          fontWeight: FontWeight.bold,
+        ),
         decoration: InputDecoration(
           labelText: label,
-          labelStyle: TextStyle(fontSize: 11, color: textColor.withValues(alpha: 0.6)),
-          contentPadding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
+          labelStyle: TextStyle(
+            fontSize: 11,
+            color: textColor.withValues(alpha: 0.6),
+          ),
+          contentPadding: const EdgeInsets.symmetric(
+            vertical: 10,
+            horizontal: 4,
+          ),
           border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(8),
@@ -950,18 +1334,26 @@ class _ClockViewState extends State<ClockView> {
               children: [
                 const SizedBox(height: 10),
                 Tooltip(
-                  message: canEdit ? 'Click to set custom time' : 'Timer is active',
+                  message: canEdit
+                      ? 'Click to set custom time'
+                      : 'Timer is active',
                   child: InkWell(
                     onTap: canEdit ? _showCustomTimeDialog : null,
                     borderRadius: BorderRadius.circular(16),
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24,
+                        vertical: 16,
+                      ),
                       decoration: BoxDecoration(
                         color: cardBg,
                         border: Border.all(
-                            color: canEdit
-                                ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.6)
-                                : cardBorder),
+                          color: canEdit
+                              ? Theme.of(
+                                  context,
+                                ).colorScheme.primary.withValues(alpha: 0.6)
+                              : cardBorder,
+                        ),
                         borderRadius: BorderRadius.circular(16),
                       ),
                       child: Row(
@@ -983,7 +1375,9 @@ class _ClockViewState extends State<ClockView> {
                             Icon(
                               Icons.edit_outlined,
                               size: 18,
-                              color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.7),
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.primary.withValues(alpha: 0.7),
                             ),
                           ],
                         ],
@@ -997,16 +1391,25 @@ class _ClockViewState extends State<ClockView> {
                     if (overtimeSecs <= 0) return const SizedBox.shrink();
                     return Container(
                       margin: const EdgeInsets.only(top: 10),
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 5,
+                      ),
                       decoration: BoxDecoration(
                         color: Colors.redAccent.withValues(alpha: 0.15),
-                        border: Border.all(color: Colors.redAccent.withValues(alpha: 0.5)),
+                        border: Border.all(
+                          color: Colors.redAccent.withValues(alpha: 0.5),
+                        ),
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(Icons.alarm_on_rounded, size: 14, color: Colors.redAccent),
+                          const Icon(
+                            Icons.alarm_on_rounded,
+                            size: 14,
+                            color: Colors.redAccent,
+                          ),
                           const SizedBox(width: 6),
                           Text(
                             'Ringing: ${_formatOvertimeDisplay(overtimeSecs)}',
@@ -1045,8 +1448,9 @@ class _ClockViewState extends State<ClockView> {
                   children: [
                     ElevatedButton.icon(
                       style: ElevatedButton.styleFrom(
-                        backgroundColor:
-                            isRunning ? Colors.orangeAccent : Theme.of(context).colorScheme.primary,
+                        backgroundColor: isRunning
+                            ? Colors.orangeAccent
+                            : Theme.of(context).colorScheme.primary,
                         foregroundColor: Colors.white,
                       ),
                       onPressed: isRunning
@@ -1058,8 +1462,9 @@ class _ClockViewState extends State<ClockView> {
                     const SizedBox(width: 12),
                     ElevatedButton.icon(
                       style: ElevatedButton.styleFrom(
-                        backgroundColor:
-                            Colors.redAccent.withValues(alpha: 0.2),
+                        backgroundColor: Colors.redAccent.withValues(
+                          alpha: 0.2,
+                        ),
                         foregroundColor: Colors.redAccent,
                       ),
                       onPressed: TimerService.reset,
@@ -1095,18 +1500,33 @@ class _ClockViewState extends State<ClockView> {
     final primaryColor = Theme.of(context).colorScheme.primary;
 
     final now = DateTime.now();
-    final upcomingCount = widget.todos.where((t) => !t.isCompleted && (t.targetDateTime.isAfter(now) || t.targetDateTime.isAtSameMomentAs(now))).length;
-    final missedCount = widget.todos.where((t) => !t.isCompleted && t.targetDateTime.isBefore(now)).length;
-    final completedCount = widget.todos.where((t) => t.isCompleted).length;
+    final upcomingCount = widget.todos
+        .where(
+          (t) =>
+              !t.isCompleted &&
+              (t.targetDateTime.isAfter(now) ||
+                  t.targetDateTime.isAtSameMomentAs(now)),
+        )
+        .length;
+    final missedCount = widget.todos
+        .where((t) => !t.isCompleted && t.targetDateTime.isBefore(now))
+        .length;
+    final completedCount = widget.todos
+        .where((t) => t.isOnTimeCompleted)
+        .length;
+    final delayedCount = widget.todos.where((t) => t.isDelayed).length;
 
     List<TodoItem> filteredTodos = widget.todos.where((item) {
       if (_todoFilter == 'upcoming') {
-        return !item.isCompleted && (item.targetDateTime.isAfter(now) || item.targetDateTime.isAtSameMomentAs(now));
+        return !item.isCompleted &&
+            (item.targetDateTime.isAfter(now) ||
+                item.targetDateTime.isAtSameMomentAs(now));
       }
       if (_todoFilter == 'missed') {
         return !item.isCompleted && item.targetDateTime.isBefore(now);
       }
-      if (_todoFilter == 'completed') return item.isCompleted;
+      if (_todoFilter == 'delayed') return item.isDelayed;
+      if (_todoFilter == 'completed') return item.isOnTimeCompleted;
       return true;
     }).toList();
 
@@ -1116,29 +1536,42 @@ class _ClockViewState extends State<ClockView> {
     return Column(
       children: [
         // Header Controls
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        Column(
           children: [
-            Expanded(
-              child: SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
-                  children: [
-                    _buildTodoFilterChip('all', 'All (${widget.todos.length})'),
-                    const SizedBox(width: 4),
-                    _buildTodoFilterChip('upcoming', 'Upcoming ($upcomingCount)'),
-                    const SizedBox(width: 4),
-                    _buildTodoFilterChip('missed', 'Missed ($missedCount)'),
-                    const SizedBox(width: 4),
-                    _buildTodoFilterChip('completed', 'Done ($completedCount)'),
-                  ],
-                ),
-              ),
+            Wrap(
+              spacing: 6,
+              runSpacing: 0,
+              children: [
+                _buildTodoFilterChip('all', 'All (${widget.todos.length})'),
+                _buildTodoFilterChip('upcoming', 'Upcoming ($upcomingCount)'),
+                _buildTodoFilterChip('missed', 'Missed ($missedCount)'),
+                _buildTodoFilterChip('delayed', 'Delayed ($delayedCount)'),
+                _buildTodoFilterChip('completed', 'Done ($completedCount)'),
+              ],
             ),
-            IconButton(
-              icon: Icon(Icons.add_circle_outline, color: primaryColor, size: 20),
-              onPressed: () => _showAddEditTodoDialog(),
-              tooltip: 'Add Event Reminder',
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                if (AccountService.isAccountAttached)
+                  IconButton(
+                    icon: Icon(
+                      Icons.file_open_outlined,
+                      color: primaryColor,
+                      size: 19,
+                    ),
+                    onPressed: _importCalendarEvents,
+                    tooltip: 'Import calendar (.ics or .csv)',
+                  ),
+                IconButton(
+                  icon: Icon(
+                    Icons.add_circle_outline,
+                    color: primaryColor,
+                    size: 20,
+                  ),
+                  onPressed: () => _showAddEditTodoDialog(),
+                  tooltip: 'Add Event Reminder',
+                ),
+              ],
             ),
           ],
         ),
@@ -1149,11 +1582,17 @@ class _ClockViewState extends State<ClockView> {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.event_available_rounded, size: 36, color: textColor.withValues(alpha: 0.3)),
+                      Icon(
+                        Icons.event_available_rounded,
+                        size: 36,
+                        color: textColor.withValues(alpha: 0.3),
+                      ),
                       const SizedBox(height: 8),
                       Text(
                         _todoFilter == 'completed'
                             ? 'No completed tasks yet.'
+                            : _todoFilter == 'delayed'
+                            ? 'No delayed events yet.'
                             : 'No upcoming event reminders.\nClick + to set a reminder for a week later or custom date.',
                         textAlign: TextAlign.center,
                         style: TextStyle(
@@ -1170,353 +1609,512 @@ class _ClockViewState extends State<ClockView> {
                     return ListView.builder(
                       itemCount: filteredTodos.length,
                       itemBuilder: (context, index) {
-                    final todo = filteredTodos[index];
-                    final isOverdue = !todo.isCompleted && DateTime.now().isAfter(todo.targetDateTime);
-                    final isExpanded = _expandedTodoIds.contains(todo.id);
-                    final isDark = Theme.of(context).brightness == Brightness.dark;
+                        final todo = filteredTodos[index];
+                        final isOverdue =
+                            !todo.isCompleted &&
+                            DateTime.now().isAfter(todo.targetDateTime);
+                        final isExpanded = _expandedTodoIds.contains(todo.id);
+                        final isDark =
+                            Theme.of(context).brightness == Brightness.dark;
 
-                    return AnimatedContainer(
-                      duration: const Duration(milliseconds: 200),
-                      margin: const EdgeInsets.only(bottom: 8),
-                      decoration: BoxDecoration(
-                        color: isExpanded
-                            ? (isDark
-                                ? primaryColor.withValues(alpha: 0.1)
-                                : primaryColor.withValues(alpha: 0.06))
-                            : cardBg,
-                        border: Border.all(
-                          color: isOverdue
-                              ? Colors.redAccent.withValues(alpha: 0.5)
-                              : isExpanded
+                        return AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          margin: const EdgeInsets.only(bottom: 8),
+                          decoration: BoxDecoration(
+                            color: isExpanded
+                                ? (isDark
+                                      ? primaryColor.withValues(alpha: 0.1)
+                                      : primaryColor.withValues(alpha: 0.06))
+                                : cardBg,
+                            border: Border.all(
+                              color: isOverdue
+                                  ? Colors.redAccent.withValues(alpha: 0.5)
+                                  : isExpanded
                                   ? primaryColor.withValues(alpha: 0.6)
                                   : todo.isCompleted
-                                      ? cardBorder
-                                      : primaryColor.withValues(alpha: 0.3),
-                          width: isExpanded ? 1.5 : 1.0,
-                        ),
-                        borderRadius: BorderRadius.circular(10),
-                        boxShadow: isExpanded
-                            ? [
-                                BoxShadow(
-                                  color: primaryColor.withValues(alpha: 0.15),
-                                  blurRadius: 8,
-                                  offset: const Offset(0, 3),
-                                ),
-                              ]
-                            : null,
-                      ),
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(10),
-                        onTap: () {
-                          setState(() {
-                            if (_expandedTodoIds.contains(todo.id)) {
-                              _expandedTodoIds.remove(todo.id);
-                            } else {
-                              _expandedTodoIds.add(todo.id);
-                            }
-                          });
-                        },
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              // Main Header Row
-                              Row(
+                                  ? cardBorder
+                                  : primaryColor.withValues(alpha: 0.3),
+                              width: isExpanded ? 1.5 : 1.0,
+                            ),
+                            borderRadius: BorderRadius.circular(10),
+                            boxShadow: isExpanded
+                                ? [
+                                    BoxShadow(
+                                      color: primaryColor.withValues(
+                                        alpha: 0.15,
+                                      ),
+                                      blurRadius: 8,
+                                      offset: const Offset(0, 3),
+                                    ),
+                                  ]
+                                : null,
+                          ),
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(10),
+                            onTap: () {
+                              setState(() {
+                                if (_expandedTodoIds.contains(todo.id)) {
+                                  _expandedTodoIds.remove(todo.id);
+                                } else {
+                                  _expandedTodoIds.add(todo.id);
+                                }
+                              });
+                            },
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 10,
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Checkbox(
-                                    value: todo.isCompleted,
-                                    activeColor: primaryColor,
-                                    onChanged: (val) {
-                                      setState(() {
-                                        todo.isCompleted = val ?? false;
-                                      });
-                                      widget.onTodosChanged(widget.todos);
-                                      AppSettings.saveSettings(todos: widget.todos);
-                                      AlarmService.updateTodos(widget.todos);
-                                    },
-                                  ),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          todo.title,
-                                          style: TextStyle(
-                                            fontSize: 14,
-                                            fontWeight: FontWeight.bold,
-                                            decoration: todo.isCompleted ? TextDecoration.lineThrough : null,
-                                            color: todo.isCompleted
-                                                ? textColor.withValues(alpha: 0.4)
-                                                : textColor,
-                                          ),
+                                  // Main Header Row
+                                  Row(
+                                    children: [
+                                      IconButton(
+                                        tooltip: todo.isCompleted
+                                            ? 'Mark as not done'
+                                            : 'Mark as done',
+                                        color: primaryColor,
+                                        onPressed: () =>
+                                            _toggleTodoCompletion(todo),
+                                        icon: Icon(
+                                          todo.isCompleted
+                                              ? Icons.check_circle_rounded
+                                              : Icons
+                                                    .check_circle_outline_rounded,
                                         ),
-                                        if (!isExpanded && todo.description.isNotEmpty) ...[
-                                          const SizedBox(height: 2),
-                                          Text(
-                                            todo.description,
-                                            style: TextStyle(
-                                              fontSize: 11,
-                                              color: textColor.withValues(alpha: 0.6),
-                                            ),
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                        ],
-                                        if (!isExpanded) ...[
-                                          const SizedBox(height: 4),
-                                          Row(
-                                            children: [
-                                              Icon(
-                                                Icons.schedule_rounded,
-                                                size: 12,
-                                                color: isOverdue
-                                                    ? Colors.redAccent
-                                                    : todo.isCompleted
-                                                        ? textColor.withValues(alpha: 0.3)
-                                                        : primaryColor,
+                                      ),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              todo.title,
+                                              style: TextStyle(
+                                                fontSize: 14,
+                                                fontWeight: FontWeight.bold,
+                                                decoration: todo.isCompleted
+                                                    ? TextDecoration.lineThrough
+                                                    : null,
+                                                color: todo.isCompleted
+                                                    ? textColor.withValues(
+                                                        alpha: 0.4,
+                                                      )
+                                                    : textColor,
                                               ),
-                                              const SizedBox(width: 4),
+                                            ),
+                                            if (!isExpanded &&
+                                                todo
+                                                    .description
+                                                    .isNotEmpty) ...[
+                                              const SizedBox(height: 2),
                                               Text(
-                                                todo.formattedTargetDate,
+                                                todo.description,
                                                 style: TextStyle(
                                                   fontSize: 11,
-                                                  color: isOverdue
-                                                      ? Colors.redAccent
-                                                      : textColor.withValues(alpha: 0.6),
+                                                  color: textColor.withValues(
+                                                    alpha: 0.6,
+                                                  ),
                                                 ),
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
                                               ),
-                                              const SizedBox(width: 8),
-                                              Container(
-                                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                                                decoration: BoxDecoration(
-                                                  color: isOverdue
-                                                      ? Colors.redAccent.withValues(alpha: 0.15)
-                                                      : todo.isCompleted
-                                                          ? textColor.withValues(alpha: 0.1)
-                                                          : primaryColor.withValues(alpha: 0.15),
-                                                  borderRadius: BorderRadius.circular(4),
-                                                ),
-                                                child: Text(
-                                                  todo.timeRemainingSummary,
-                                                  style: TextStyle(
-                                                    fontSize: 10,
-                                                    fontWeight: FontWeight.bold,
+                                            ],
+                                            if (!isExpanded) ...[
+                                              const SizedBox(height: 4),
+                                              Row(
+                                                children: [
+                                                  Icon(
+                                                    Icons.schedule_rounded,
+                                                    size: 12,
                                                     color: isOverdue
                                                         ? Colors.redAccent
                                                         : todo.isCompleted
-                                                            ? textColor.withValues(alpha: 0.4)
-                                                            : primaryColor,
+                                                        ? textColor.withValues(
+                                                            alpha: 0.3,
+                                                          )
+                                                        : primaryColor,
                                                   ),
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ],
-                                      ],
-                                    ),
-                                  ),
-                                  IconButton(
-                                    icon: Icon(
-                                      isExpanded
-                                          ? Icons.keyboard_arrow_up_rounded
-                                          : Icons.keyboard_arrow_down_rounded,
-                                      size: 20,
-                                    ),
-                                    color: primaryColor,
-                                    onPressed: () {
-                                      setState(() {
-                                        if (_expandedTodoIds.contains(todo.id)) {
-                                          _expandedTodoIds.remove(todo.id);
-                                        } else {
-                                          _expandedTodoIds.add(todo.id);
-                                        }
-                                      });
-                                    },
-                                    tooltip: isExpanded ? 'Collapse Details' : 'Expand Details',
-                                  ),
-                                ],
-                              ),
-
-                              // Expanded Details View
-                              if (isExpanded) ...[
-                                const SizedBox(height: 8),
-                                Divider(color: cardBorder, height: 1),
-                                const SizedBox(height: 10),
-
-                                // Full Description Box
-                                Text(
-                                  'DETAILS & NOTES',
-                                  style: TextStyle(
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.bold,
-                                    letterSpacing: 0.5,
-                                    color: textColor.withValues(alpha: 0.5),
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Container(
-                                  width: double.infinity,
-                                  padding: const EdgeInsets.all(10),
-                                  decoration: BoxDecoration(
-                                    color: isDark
-                                        ? Colors.black.withValues(alpha: 0.25)
-                                        : Colors.white.withValues(alpha: 0.6),
-                                    borderRadius: BorderRadius.circular(8),
-                                    border: Border.all(color: cardBorder),
-                                  ),
-                                  child: SelectableText(
-                                    todo.description.isNotEmpty
-                                        ? todo.description
-                                        : 'No additional details provided.',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      color: todo.description.isNotEmpty
-                                          ? textColor
-                                          : textColor.withValues(alpha: 0.4),
-                                      height: 1.4,
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(height: 10),
-
-                                // Event Date & Countdown Cards
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child: Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                                        decoration: BoxDecoration(
-                                          color: isDark
-                                              ? Colors.white.withValues(alpha: 0.04)
-                                              : Colors.black.withValues(alpha: 0.03),
-                                          borderRadius: BorderRadius.circular(6),
-                                        ),
-                                        child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
-                                          children: [
-                                            Text(
-                                              'SCHEDULED DATE',
-                                              style: TextStyle(
-                                                  fontSize: 9,
-                                                  fontWeight: FontWeight.bold,
-                                                  color: textColor.withValues(alpha: 0.5)),
-                                            ),
-                                            const SizedBox(height: 2),
-                                            Row(
-                                              children: [
-                                                Icon(Icons.event_note_rounded, size: 13, color: primaryColor),
-                                                const SizedBox(width: 4),
-                                                Expanded(
-                                                  child: Text(
+                                                  const SizedBox(width: 4),
+                                                  Text(
                                                     todo.formattedTargetDate,
                                                     style: TextStyle(
-                                                        fontSize: 11,
-                                                        fontWeight: FontWeight.bold,
-                                                        color: textColor),
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Expanded(
-                                      child: Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                                        decoration: BoxDecoration(
-                                          color: isOverdue
-                                              ? Colors.redAccent.withValues(alpha: 0.15)
-                                              : primaryColor.withValues(alpha: 0.15),
-                                          borderRadius: BorderRadius.circular(6),
-                                        ),
-                                        child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
-                                          children: [
-                                            Text(
-                                              'COUNTDOWN',
-                                              style: TextStyle(
-                                                  fontSize: 9,
-                                                  fontWeight: FontWeight.bold,
-                                                  color: textColor.withValues(alpha: 0.5)),
-                                            ),
-                                            const SizedBox(height: 2),
-                                            Row(
-                                              children: [
-                                                Icon(
-                                                  isOverdue
-                                                      ? Icons.warning_amber_rounded
-                                                      : Icons.hourglass_top_rounded,
-                                                  size: 13,
-                                                  color: isOverdue ? Colors.redAccent : primaryColor,
-                                                ),
-                                                const SizedBox(width: 4),
-                                                Expanded(
-                                                  child: Text(
-                                                    todo.timeRemainingSummary,
-                                                    style: TextStyle(
                                                       fontSize: 11,
-                                                      fontWeight: FontWeight.bold,
-                                                      color: isOverdue ? Colors.redAccent : primaryColor,
+                                                      color: isOverdue
+                                                          ? Colors.redAccent
+                                                          : textColor
+                                                                .withValues(
+                                                                  alpha: 0.6,
+                                                                ),
                                                     ),
                                                   ),
-                                                ),
-                                              ],
-                                            ),
+                                                  const SizedBox(width: 8),
+                                                  Container(
+                                                    padding:
+                                                        const EdgeInsets.symmetric(
+                                                          horizontal: 6,
+                                                          vertical: 1,
+                                                        ),
+                                                    decoration: BoxDecoration(
+                                                      color: isOverdue
+                                                          ? Colors.redAccent
+                                                                .withValues(
+                                                                  alpha: 0.15,
+                                                                )
+                                                          : todo.isCompleted
+                                                          ? textColor
+                                                                .withValues(
+                                                                  alpha: 0.1,
+                                                                )
+                                                          : primaryColor
+                                                                .withValues(
+                                                                  alpha: 0.15,
+                                                                ),
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                            4,
+                                                          ),
+                                                    ),
+                                                    child: Text(
+                                                      todo.timeRemainingSummary,
+                                                      style: TextStyle(
+                                                        fontSize: 11,
+                                                        fontWeight:
+                                                            FontWeight.bold,
+                                                        color: isOverdue
+                                                            ? Colors.redAccent
+                                                            : todo.isCompleted
+                                                            ? textColor
+                                                                  .withValues(
+                                                                    alpha: 0.4,
+                                                                  )
+                                                            : primaryColor,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ],
                                           ],
                                         ),
                                       ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 10),
+                                      IconButton(
+                                        icon: Icon(
+                                          isExpanded
+                                              ? Icons.keyboard_arrow_up_rounded
+                                              : Icons
+                                                    .keyboard_arrow_down_rounded,
+                                          size: 20,
+                                        ),
+                                        color: primaryColor,
+                                        onPressed: () {
+                                          setState(() {
+                                            if (_expandedTodoIds.contains(
+                                              todo.id,
+                                            )) {
+                                              _expandedTodoIds.remove(todo.id);
+                                            } else {
+                                              _expandedTodoIds.add(todo.id);
+                                            }
+                                          });
+                                        },
+                                        tooltip: isExpanded
+                                            ? 'Collapse Details'
+                                            : 'Expand Details',
+                                      ),
+                                    ],
+                                  ),
 
-                                // Action Buttons
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.end,
-                                  children: [
-                                    OutlinedButton.icon(
-                                      style: OutlinedButton.styleFrom(
-                                        foregroundColor: textColor,
-                                        side: BorderSide(color: cardBorder),
-                                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                        visualDensity: VisualDensity.compact,
+                                  // Expanded Details View
+                                  if (isExpanded) ...[
+                                    const SizedBox(height: 8),
+                                    Divider(color: cardBorder, height: 1),
+                                    const SizedBox(height: 10),
+
+                                    // Full Description Box
+                                    Text(
+                                      'DETAILS & NOTES',
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.bold,
+                                        letterSpacing: 0.5,
+                                        color: textColor.withValues(alpha: 0.5),
                                       ),
-                                      icon: const Icon(Icons.edit_outlined, size: 14),
-                                      label: const Text('Edit', style: TextStyle(fontSize: 11)),
-                                      onPressed: () => _showAddEditTodoDialog(todo),
                                     ),
-                                    const SizedBox(width: 8),
-                                    OutlinedButton.icon(
-                                      style: OutlinedButton.styleFrom(
-                                        foregroundColor: Colors.redAccent,
-                                        side: BorderSide(color: Colors.redAccent.withValues(alpha: 0.4)),
-                                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                        visualDensity: VisualDensity.compact,
+                                    const SizedBox(height: 4),
+                                    Container(
+                                      width: double.infinity,
+                                      padding: const EdgeInsets.all(10),
+                                      decoration: BoxDecoration(
+                                        color: isDark
+                                            ? Colors.black.withValues(
+                                                alpha: 0.25,
+                                              )
+                                            : Colors.white.withValues(
+                                                alpha: 0.6,
+                                              ),
+                                        borderRadius: BorderRadius.circular(8),
+                                        border: Border.all(color: cardBorder),
                                       ),
-                                      icon: const Icon(Icons.delete_outline, size: 14),
-                                      label: const Text('Delete', style: TextStyle(fontSize: 11)),
-                                      onPressed: () {
-                                        final updated = List<TodoItem>.from(widget.todos)..remove(todo);
-                                        widget.onTodosChanged(updated);
-                                        AppSettings.saveSettings(todos: updated);
-                                        AlarmService.updateTodos(updated);
-                                      },
+                                      child: InkWell(
+                                        onTap: () => _showNotesOverview(todo),
+                                        borderRadius: BorderRadius.circular(8),
+                                        child: Padding(
+                                          padding: const EdgeInsets.all(2),
+                                          child: Text(
+                                            todo.description.isNotEmpty
+                                                ? todo.description
+                                                : 'No additional details provided.',
+                                            maxLines: 4,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              color: todo.description.isNotEmpty
+                                                  ? textColor
+                                                  : textColor.withValues(
+                                                      alpha: 0.4,
+                                                    ),
+                                              height: 1.4,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 10),
+
+                                    // Event Date & Countdown Cards
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: InkWell(
+                                            onTap: isOverdue
+                                                ? () => _rescheduleOverdueTodo(
+                                                    todo,
+                                                  )
+                                                : null,
+                                            borderRadius: BorderRadius.circular(
+                                              6,
+                                            ),
+                                            child: Container(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 10,
+                                                    vertical: 8,
+                                                  ),
+                                              decoration: BoxDecoration(
+                                                color: isDark
+                                                    ? Colors.white.withValues(
+                                                        alpha: 0.04,
+                                                      )
+                                                    : Colors.black.withValues(
+                                                        alpha: 0.03,
+                                                      ),
+                                                borderRadius:
+                                                    BorderRadius.circular(6),
+                                              ),
+                                              child: Column(
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.start,
+                                                children: [
+                                                  Text(
+                                                    'SCHEDULED DATE',
+                                                    style: TextStyle(
+                                                      fontSize: 9,
+                                                      fontWeight:
+                                                          FontWeight.bold,
+                                                      color: textColor
+                                                          .withValues(
+                                                            alpha: 0.5,
+                                                          ),
+                                                    ),
+                                                  ),
+                                                  const SizedBox(height: 2),
+                                                  Row(
+                                                    children: [
+                                                      Icon(
+                                                        Icons
+                                                            .event_note_rounded,
+                                                        size: 13,
+                                                        color: primaryColor,
+                                                      ),
+                                                      const SizedBox(width: 4),
+                                                      Expanded(
+                                                        child: Text(
+                                                          todo.formattedTargetDate,
+                                                          style: TextStyle(
+                                                            fontSize: 11,
+                                                            fontWeight:
+                                                                FontWeight.bold,
+                                                            color: textColor,
+                                                          ),
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                          child: InkWell(
+                                            onTap: isOverdue
+                                                ? () => _rescheduleOverdueTodo(
+                                                    todo,
+                                                  )
+                                                : null,
+                                            borderRadius: BorderRadius.circular(
+                                              6,
+                                            ),
+                                            child: Container(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 10,
+                                                    vertical: 8,
+                                                  ),
+                                              decoration: BoxDecoration(
+                                                color: isOverdue
+                                                    ? Colors.redAccent
+                                                          .withValues(
+                                                            alpha: 0.15,
+                                                          )
+                                                    : primaryColor.withValues(
+                                                        alpha: 0.15,
+                                                      ),
+                                                borderRadius:
+                                                    BorderRadius.circular(6),
+                                              ),
+                                              child: Column(
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.start,
+                                                children: [
+                                                  Text(
+                                                    'COUNTDOWN',
+                                                    style: TextStyle(
+                                                      fontSize: 9,
+                                                      fontWeight:
+                                                          FontWeight.bold,
+                                                      color: textColor
+                                                          .withValues(
+                                                            alpha: 0.5,
+                                                          ),
+                                                    ),
+                                                  ),
+                                                  const SizedBox(height: 2),
+                                                  Row(
+                                                    children: [
+                                                      Icon(
+                                                        isOverdue
+                                                            ? Icons
+                                                                  .warning_amber_rounded
+                                                            : Icons
+                                                                  .hourglass_top_rounded,
+                                                        size: 13,
+                                                        color: isOverdue
+                                                            ? Colors.redAccent
+                                                            : primaryColor,
+                                                      ),
+                                                      const SizedBox(width: 4),
+                                                      Expanded(
+                                                        child: Text(
+                                                          todo.timeRemainingSummary,
+                                                          style: TextStyle(
+                                                            fontSize: 11,
+                                                            fontWeight:
+                                                                FontWeight.bold,
+                                                            color: isOverdue
+                                                                ? Colors
+                                                                      .redAccent
+                                                                : primaryColor,
+                                                          ),
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 10),
+
+                                    // Action Buttons
+                                    Row(
+                                      mainAxisAlignment: MainAxisAlignment.end,
+                                      children: [
+                                        OutlinedButton.icon(
+                                          style: OutlinedButton.styleFrom(
+                                            foregroundColor: textColor,
+                                            side: BorderSide(color: cardBorder),
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 10,
+                                              vertical: 4,
+                                            ),
+                                            visualDensity:
+                                                VisualDensity.compact,
+                                          ),
+                                          icon: const Icon(
+                                            Icons.edit_outlined,
+                                            size: 14,
+                                          ),
+                                          label: const Text(
+                                            'Edit',
+                                            style: TextStyle(fontSize: 11),
+                                          ),
+                                          onPressed: () =>
+                                              _showAddEditTodoDialog(todo),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        OutlinedButton.icon(
+                                          style: OutlinedButton.styleFrom(
+                                            foregroundColor: Colors.redAccent,
+                                            side: BorderSide(
+                                              color: Colors.redAccent
+                                                  .withValues(alpha: 0.4),
+                                            ),
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 10,
+                                              vertical: 4,
+                                            ),
+                                            visualDensity:
+                                                VisualDensity.compact,
+                                          ),
+                                          icon: const Icon(
+                                            Icons.delete_outline,
+                                            size: 14,
+                                          ),
+                                          label: const Text(
+                                            'Delete',
+                                            style: TextStyle(fontSize: 11),
+                                          ),
+                                          onPressed: () {
+                                            final updated = List<TodoItem>.from(
+                                              widget.todos,
+                                            )..remove(todo);
+                                            widget.onTodosChanged(updated);
+                                            AppSettings.saveSettings(
+                                              todos: updated,
+                                            );
+                                            AlarmService.updateTodos(updated);
+                                          },
+                                        ),
+                                      ],
                                     ),
                                   ],
-                                ),
-                              ],
-                            ],
+                                ],
+                              ),
+                            ),
                           ),
-                          ),
-                        ),
-                      );
-                    },
-                  );
-                },
-              ),
+                        );
+                      },
+                    );
+                  },
+                ),
         ),
       ],
     );

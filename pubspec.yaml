@@ -26,12 +26,17 @@ flutter:
   uses-material-design: true
 
   assets:
-    - lib/assets/imgs/app-logo.jpg
-    - lib/assets/imgs/app-logo.png
+    - CHANGELOG.md
+    - lib/assets/imgs/App logo (dark).png
+    - lib/assets/imgs/app-logo (light).jpg
     - lib/assets/imgs/acc pic.jpg
+    - lib/assets/gifs/
 
   # Custom font configuration for Omoji color emoji rendering
   fonts:
+    - family: MeaCulpa
+      fonts:
+        - asset: lib/assets/font/App font (title)/MeaCulpa-Regular.ttf
     - family: NotoColorEmoji
       fonts:
         - asset: lib/assets/font/JetBrains_Mono,Noto_Color_Emoji/Noto_Color_Emoji/NotoColorEmoji-Regular.ttf

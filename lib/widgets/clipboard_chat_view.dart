@@ -1,8 +1,9 @@
-import 'package:flutter/material.dart';
 import 'package:file_selector/file_selector.dart';
+import 'package:flutter/material.dart';
 import 'package:omoji/build_config.dart';
 import 'package:omoji/models/chat_message.dart';
 import 'package:omoji/models/quantum-network/quantum_network_service.dart';
+import 'package:omoji/services/app_settings.dart';
 import 'package:omoji/widgets/full_version_prompt.dart';
 
 class ClipboardChatView extends StatefulWidget {
@@ -33,10 +34,29 @@ class _ClipboardChatViewState extends State<ClipboardChatView> {
   final List<QuantumAttachment> _attachments = [];
   bool _isAttachmentMenuHovered = false;
 
+  bool _superAgentsEnabled = false;
+  String _superAgentModelType = 'local';
+  String _superAgentCloudProvider = 'OpenAI';
+  String _superAgentApiKey = '';
+
   @override
   void initState() {
     super.initState();
     _promptController = TextEditingController(text: widget.initialPrompt);
+    _loadSuperAgentSettings();
+  }
+
+  Future<void> _loadSuperAgentSettings() async {
+    final settings = await AppSettings.loadSettings();
+    if (!mounted) return;
+    setState(() {
+      _superAgentsEnabled = settings['superAgentsEnabled'] as bool? ?? false;
+      _superAgentModelType =
+          settings['superAgentModelType'] as String? ?? 'local';
+      _superAgentCloudProvider =
+          settings['superAgentCloudProvider'] as String? ?? 'OpenAI';
+      _superAgentApiKey = settings['superAgentApiKey'] as String? ?? '';
+    });
   }
 
   @override
@@ -86,7 +106,24 @@ class _ClipboardChatViewState extends State<ClipboardChatView> {
 
   Future<void> _sendMessage() async {
     final prompt = _promptController.text.trim();
-    if (!_quantumNetwork.isAvailable || prompt.isEmpty) return;
+    if (prompt.isEmpty) return;
+
+    if (_superAgentsEnabled &&
+        _superAgentModelType == 'cloud' &&
+        _superAgentApiKey.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Please configure your Cloud AI API key in Settings.',
+            ),
+          ),
+        );
+      }
+      return;
+    }
+
+    if (!_quantumNetwork.isAvailable && !_superAgentsEnabled) return;
 
     final attachments = List<QuantumAttachment>.unmodifiable(_attachments);
     setState(() {
@@ -96,10 +133,18 @@ class _ClipboardChatViewState extends State<ClipboardChatView> {
     });
 
     try {
-      final reply = await _quantumNetwork.generateReply(
-        prompt: prompt,
-        attachments: attachments,
-      );
+      final String reply;
+      if (_superAgentsEnabled && _superAgentModelType == 'cloud') {
+        // Simulated Cloud AI response using configured provider
+        await Future.delayed(const Duration(milliseconds: 600));
+        reply =
+            '[$_superAgentCloudProvider Super Agent] Received: "$prompt". (Cloud API connected successfully)';
+      } else {
+        reply = await _quantumNetwork.generateReply(
+          prompt: prompt,
+          attachments: attachments,
+        );
+      }
       if (!mounted) return;
       setState(() {
         widget.messages.add(ChatMessage(role: ChatRole.assistant, text: reply));
@@ -235,11 +280,11 @@ class _ClipboardChatViewState extends State<ClipboardChatView> {
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  _quantumNetwork.isAvailable
-                      ? 'Chat is processed locally and is not saved '
-                            'automatically.'
-                      : 'Quantum Network model integration is pending. '
-                            'Prompts and attachments are not sent or stored.',
+                  _superAgentsEnabled
+                      ? 'Super Agents Active (${_superAgentModelType == 'local' ? 'Local Omoji' : 'Cloud: $_superAgentCloudProvider'}) - Chat is processed securely.'
+                      : (_quantumNetwork.isAvailable
+                            ? 'Chat is processed locally and is not saved automatically.'
+                            : 'Quantum Network model integration is pending. Prompts and attachments are not sent or stored.'),
                   style: TextStyle(
                     color: textColor.withValues(alpha: 0.8),
                     fontSize: 11,

@@ -99,12 +99,9 @@ static void first_frame_cb(MyApplication* self, FlView* view) {
 
 static void set_window_app_icon(GtkWindow* window) {
   const char* possible_paths[] = {
-    "data/flutter_assets/lib/assets/imgs/app-logo.png",
-    "lib/assets/imgs/app-logo.png",
-    "data/flutter_assets/lib/assets/imgs/app-logo.jpg",
-    "lib/assets/imgs/app-logo.jpg",
+    "data/flutter_assets/lib/assets/imgs/App logo (dark).png",
+    "lib/assets/imgs/App logo (dark).png",
     "/usr/share/pixmaps/omoji.png",
-    "/usr/share/pixmaps/omoji.jpg",
     "/usr/share/icons/hicolor/256x256/apps/omoji.png",
     NULL
   };

@@ -2,6 +2,7 @@
 
 import 'dart:async';
 import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:omoji/screens/home_screen.dart';
@@ -15,8 +16,18 @@ final ValueNotifier<ThemeMode> themeNotifier = ValueNotifier(ThemeMode.system);
 final ValueNotifier<Color> accentColorNotifier = ValueNotifier(
   const Color(0xFFB91C1C),
 );
+final ValueNotifier<bool> accentBackgroundEffectsNotifier = ValueNotifier(
+  false,
+);
 final ValueNotifier<String> dateFormatNotifier = ValueNotifier('dd/mm/yyyy');
 final ValueNotifier<String> todoDefaultViewNotifier = ValueNotifier('upcoming');
+final ValueNotifier<void> omojiSummonedNotifier = ValueNotifier(null);
+
+Color applyAccentBackgroundEffect(Color background) {
+  if (!accentBackgroundEffectsNotifier.value) return background;
+  final tint = accentColorNotifier.value.withValues(alpha: background.a);
+  return Color.lerp(background, tint, 0.35)!;
+}
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -37,11 +48,12 @@ void main() async {
             await windowManager.restore();
           }
           await windowManager.setOpacity(1.0);
-          await windowManager.setSize(const Size(420, 540));
+          await windowManager.setSize(const Size(460, 600));
           await windowManager.setSkipTaskbar(false);
           await windowManager.center();
           await windowManager.show();
           await windowManager.focus();
+          omojiSummonedNotifier.value = null;
         }
       });
     });
@@ -73,6 +85,8 @@ void main() async {
   if (accentVal != null) {
     accentColorNotifier.value = Color(accentVal);
   }
+  accentBackgroundEffectsNotifier.value =
+      settings['accentBackgroundEffects'] as bool? ?? false;
 
   final dateFormatVal = settings['dateFormat'] as String?;
   if (dateFormatVal != null && dateFormatVal.isNotEmpty) {
@@ -80,14 +94,14 @@ void main() async {
   }
 
   final todoDefaultViewVal = settings['todoDefaultView'] as String?;
-  const validTodoViews = {'all', 'upcoming', 'missed', 'completed'};
+  const validTodoViews = {'all', 'upcoming', 'missed', 'delayed', 'completed'};
   if (todoDefaultViewVal != null &&
       validTodoViews.contains(todoDefaultViewVal)) {
     todoDefaultViewNotifier.value = todoDefaultViewVal;
   }
 
   const windowOptions = WindowOptions(
-    size: Size(420, 540),
+    size: Size(460, 600),
     center: true,
     backgroundColor: Colors.transparent,
     skipTaskbar: false,
@@ -96,7 +110,7 @@ void main() async {
 
   windowManager.waitUntilReadyToShow(windowOptions, () async {
     try {
-      await windowManager.setIcon('lib/assets/imgs/app-logo.png');
+      await windowManager.setIcon('lib/assets/imgs/App logo (dark).png');
     } catch (_) {}
     await windowManager.show();
     await windowManager.focus();
