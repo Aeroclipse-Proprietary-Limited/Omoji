@@ -4,6 +4,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+
 import 'package:flutter/material.dart';
 
 class PredictionEvent {
@@ -25,11 +26,22 @@ class PredictionEvent {
 }
 
 class EmojiPredictionService {
-  static final ValueNotifier<PredictionEvent?> currentEvent = ValueNotifier(null);
+  static final ValueNotifier<PredictionEvent?> currentEvent = ValueNotifier(
+    null,
+  );
   static Process? _daemonProcess;
   static Socket? _socket;
   static Timer? _reconnectTimer;
   static bool _initialized = false;
+
+  static String get _socketPath {
+    final runtimeDirectory = Platform.environment['XDG_RUNTIME_DIR'];
+    final home = Platform.environment['HOME'] ?? '';
+    final base = runtimeDirectory != null && runtimeDirectory.isNotEmpty
+        ? runtimeDirectory
+        : '$home/.cache/omoji/runtime';
+    return '$base/omoji/emoji-prediction.sock';
+  }
 
   static Future<void> init() async {
     if (_initialized) return;
@@ -42,10 +54,17 @@ class EmojiPredictionService {
 
   static Future<void> _startDaemon() async {
     try {
+      final socketFile = File(_socketPath);
+      await socketFile.parent.create(recursive: true);
+      if (Platform.isLinux || Platform.isMacOS) {
+        await Process.run('chmod', ['700', socketFile.parent.path]);
+      }
       final exeDir = File(Platform.resolvedExecutable).parent.path;
       final candidates = [
         '$exeDir/lib/scripts/emoji_prediction_daemon.py',
         '${Directory.current.path}/lib/scripts/emoji_prediction_daemon.py',
+        if (Platform.environment['SNAP'] != null)
+          '${Platform.environment['SNAP']!}/lib/scripts/emoji_prediction_daemon.py',
         '/home/uninterested_k/.local/share/omoji/lib/scripts/emoji_prediction_daemon.py',
         '/home/uninterested_k/Documents/Omoji/lib/scripts/emoji_prediction_daemon.py',
         '/usr/lib/omoji/lib/scripts/emoji_prediction_daemon.py',
@@ -56,6 +75,7 @@ class EmojiPredictionService {
             'python3',
             [path],
             mode: ProcessStartMode.detached,
+            environment: {'OMOJI_PREDICTION_SOCKET': _socketPath},
           );
           break;
         }
@@ -68,48 +88,59 @@ class EmojiPredictionService {
   static void _connectSocket() async {
     _reconnectTimer?.cancel();
     try {
-      _socket = await Socket.connect('127.0.0.1', 18942, timeout: const Duration(seconds: 2));
-      utf8.decoder.bind(_socket!).transform(const LineSplitter()).listen(
-        (line) {
-          try {
-            final data = jsonDecode(line) as Map<String, dynamic>;
-            final type = data['type'] as String? ?? 'clear';
-
-            if (type == 'prediction') {
-              final word = data['word'] as String? ?? '';
-              final rawPreds = data['predictions'] as List<dynamic>? ?? [];
-              final predictions = rawPreds.map((p) => {
-                'char': (p['char'] as String? ?? ''),
-                'name': (p['name'] as String? ?? ''),
-              }).toList();
-              final posX = data['x'] as int?;
-              final posY = data['y'] as int?;
-
-              currentEvent.value = PredictionEvent(
-                type: 'prediction',
-                word: word,
-                predictions: predictions,
-                x: posX,
-                y: posY,
-              );
-            } else if (type == 'autofill') {
-              final emoji = data['emoji'] as String? ?? '';
-              final word = data['word'] as String? ?? '';
-              currentEvent.value = PredictionEvent(
-                type: 'autofill',
-                word: word,
-                emoji: emoji,
-              );
-            } else {
-              currentEvent.value = PredictionEvent(type: 'clear');
-            }
-          } catch (e) {
-            debugPrint('Error parsing prediction payload: $e');
-          }
-        },
-        onError: (_) => _scheduleReconnect(),
-        onDone: () => _scheduleReconnect(),
+      _socket = await Socket.connect(
+        InternetAddress(_socketPath, type: InternetAddressType.unix),
+        0,
+        timeout: const Duration(seconds: 2),
       );
+      utf8.decoder
+          .bind(_socket!)
+          .transform(const LineSplitter())
+          .listen(
+            (line) {
+              try {
+                final data = jsonDecode(line) as Map<String, dynamic>;
+                final type = data['type'] as String? ?? 'clear';
+
+                if (type == 'prediction') {
+                  final word = data['word'] as String? ?? '';
+                  final rawPreds = data['predictions'] as List<dynamic>? ?? [];
+                  final predictions = rawPreds
+                      .map(
+                        (p) => {
+                          'char': (p['char'] as String? ?? ''),
+                          'name': (p['name'] as String? ?? ''),
+                        },
+                      )
+                      .toList();
+                  final posX = data['x'] as int?;
+                  final posY = data['y'] as int?;
+
+                  currentEvent.value = PredictionEvent(
+                    type: 'prediction',
+                    word: word,
+                    predictions: predictions,
+                    x: posX,
+                    y: posY,
+                  );
+                } else if (type == 'autofill') {
+                  final emoji = data['emoji'] as String? ?? '';
+                  final word = data['word'] as String? ?? '';
+                  currentEvent.value = PredictionEvent(
+                    type: 'autofill',
+                    word: word,
+                    emoji: emoji,
+                  );
+                } else {
+                  currentEvent.value = PredictionEvent(type: 'clear');
+                }
+              } catch (e) {
+                debugPrint('Error parsing prediction payload: $e');
+              }
+            },
+            onError: (_) => _scheduleReconnect(),
+            onDone: () => _scheduleReconnect(),
+          );
     } catch (_) {
       _scheduleReconnect();
     }

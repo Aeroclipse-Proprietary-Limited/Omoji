@@ -1,7 +1,9 @@
 // lib/services/logger_service.dart
 
 import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:omoji/services/private_file_permissions.dart';
 
 class LoggerService {
   static File get _logFile {
@@ -33,10 +35,9 @@ class LoggerService {
 
     try {
       final file = _logFile;
-      if (!await file.parent.exists()) {
-        await file.parent.create(recursive: true);
-      }
+      await PrivateFilePermissions.secureDirectory(file.parent);
       await file.writeAsString(logLine, mode: FileMode.append, flush: true);
+      await PrivateFilePermissions.secureFile(file);
     } catch (e) {
       debugPrint('Failed to write to omoji.log: $e');
     }
@@ -46,6 +47,8 @@ class LoggerService {
     try {
       final file = _logFile;
       if (await file.exists()) {
+        await PrivateFilePermissions.secureDirectory(file.parent);
+        await PrivateFilePermissions.secureFile(file);
         final content = await file.readAsString();
         if (levels == null || levels.length == 3) return content;
 
@@ -60,9 +63,8 @@ class LoggerService {
         }
 
         for (final line in content.split('\n')) {
-          final match = RegExp(
-            r'^\[[^]]+\] \[(INFO|WARN|ERROR)\]',
-          ).firstMatch(line);
+          final match = RegExp(r'^\[[^]]+\] \[(INFO|WARN|ERROR)\]')
+              .firstMatch(line);
           if (match != null) {
             flushEntry();
             currentLevel = match.group(1);

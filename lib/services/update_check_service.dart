@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:omoji/build_config.dart';
 import 'package:omoji/services/logger_service.dart';
+import 'package:omoji/services/private_file_permissions.dart';
 
 class UpdateCheckService {
   static const Duration _checkInterval = Duration(hours: 24);
@@ -200,6 +201,8 @@ class UpdateCheckService {
     try {
       final file = _cacheFile;
       if (!await file.exists()) return null;
+      await PrivateFilePermissions.secureDirectory(file.parent);
+      await PrivateFilePermissions.secureFile(file);
       final decoded = jsonDecode(await file.readAsString());
       if (decoded is! Map<String, dynamic> ||
           decoded['version'] is! String ||
@@ -230,7 +233,7 @@ class UpdateCheckService {
   static Future<void> _writeCache(_CachedUpdate cache) async {
     try {
       final file = _cacheFile;
-      await file.parent.create(recursive: true);
+      await PrivateFilePermissions.secureDirectory(file.parent);
       await file.writeAsString(
         jsonEncode({
           'version': cache.version,
@@ -239,6 +242,7 @@ class UpdateCheckService {
         }),
         flush: true,
       );
+      await PrivateFilePermissions.secureFile(file);
     } on FileSystemException catch (error, stackTrace) {
       await LoggerService.warn(
         'Could not save update-check cache: $error\n$stackTrace',

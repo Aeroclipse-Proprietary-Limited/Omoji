@@ -53,15 +53,13 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
   bool _autoPaste = true;
   bool _ignoreEmojisInClipboard = true;
   bool _superAgentsEnabled = false;
-  bool _latencyEnabled = false;
-  String _latencyMode = 'quick';
-  bool _isActivating = true;
+  bool _animationsEnabled = AppSettings.animationsEnabledNotifier.value ?? true;
+  bool _isActivating = AppSettings.animationsEnabledNotifier.value ?? true;
   bool _wasHidden = false;
   bool _isSummoned = false;
 
   int get _animationDurationMs {
-    if (!_latencyEnabled) return 3000;
-    return _latencyMode == 'quick' ? 2300 : 3300;
+    return _animationsEnabled ? 3000 : 0;
   }
 
   bool _enableEmojiPredictions = false;
@@ -103,7 +101,7 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
     super.initState();
     _windowChannel.setMethodCallHandler(_handleNativeMethodCall);
     windowManager.addListener(this);
-    accentBackgroundEffectsNotifier.addListener(_refreshAccentBackground);
+    accentBackgroundIntensityNotifier.addListener(_refreshAccentBackground);
     accentColorNotifier.addListener(_refreshAccentBackground);
 
     _focusNode = FocusNode(
@@ -160,6 +158,11 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
     _loadClipboardSettings();
     _startClipboardMonitoring();
     omojiSummonedNotifier.addListener(_handleSummoned);
+    trayPrivateModeRequestNotifier.addListener(_handleTrayPrivateModeRequest);
+    trayChatRequestNotifier.addListener(_handleTrayChatRequest);
+    AppSettings.animationsEnabledNotifier.addListener(
+      _handleAnimationsSettingChanged,
+    );
 
     EmojiPredictionService.init();
     EmojiPredictionService.currentEvent.addListener(
@@ -171,18 +174,22 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
         _focusNode.requestFocus();
       }
     });
+  }
 
-    Future.delayed(Duration(milliseconds: _animationDurationMs), () {
-      if (mounted) {
-        setState(() {
-          _isActivating = false;
-        });
+  void _handleAnimationsSettingChanged() {
+    final enabled = AppSettings.animationsEnabledNotifier.value;
+    if (!mounted || enabled == null || enabled == _animationsEnabled) return;
+    setState(() {
+      _animationsEnabled = enabled;
+      if (!enabled) {
+        _isActivating = false;
+        _isSummoned = false;
       }
     });
   }
 
   void _handleSummoned() {
-    if (!mounted || _isActivating) return;
+    if (!mounted || _isActivating || !_animationsEnabled) return;
     setState(() {
       _isSummoned = true;
     });
@@ -193,6 +200,21 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
         });
       }
     });
+  }
+
+  void _handleTrayPrivateModeRequest() {
+    if (!mounted) return;
+    final enabled = !_privateMode;
+    setState(() => _privateMode = enabled);
+    trayPrivateModeNotifier.value = enabled;
+    AppSettings.saveSettings(privateMode: enabled);
+  }
+
+  Future<void> _handleTrayChatRequest() async {
+    final settings = await AppSettings.loadSettings();
+    if (!mounted || settings['superAgentsEnabled'] != true) return;
+    setState(() => _superAgentsEnabled = true);
+    await _startClipboardChat();
   }
 
   void _handleGlobalPredictionEvent() async {
@@ -231,14 +253,13 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
           }
 
           try {
-            await const MethodChannel(
-              'com.aeroclipse.omoji/window',
-            ).invokeMethod('showOverlay', {
-              'x': targetX,
-              'y': targetY,
-              'width': 440.0,
-              'height': 60.0,
-            });
+            await const MethodChannel('com.aeroclipse.omoji/window')
+                .invokeMethod('showOverlay', {
+                  'x': targetX,
+                  'y': targetY,
+                  'width': 440.0,
+                  'height': 60.0,
+                });
           } catch (e) {
             debugPrint('Error showing native GTK overlay: $e');
           }
@@ -267,9 +288,8 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
         _globalPredictionWord = "";
       });
       try {
-        await const MethodChannel(
-          'com.aeroclipse.omoji/window',
-        ).invokeMethod('hideOverlay');
+        await const MethodChannel('com.aeroclipse.omoji/window')
+            .invokeMethod('hideOverlay');
       } catch (_) {}
     }
   }
@@ -502,7 +522,14 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
     _windowChannel.setMethodCallHandler(null);
     windowManager.removeListener(this);
     omojiSummonedNotifier.removeListener(_handleSummoned);
-    accentBackgroundEffectsNotifier.removeListener(_refreshAccentBackground);
+    trayPrivateModeRequestNotifier.removeListener(
+      _handleTrayPrivateModeRequest,
+    );
+    trayChatRequestNotifier.removeListener(_handleTrayChatRequest);
+    AppSettings.animationsEnabledNotifier.removeListener(
+      _handleAnimationsSettingChanged,
+    );
+    accentBackgroundIntensityNotifier.removeListener(_refreshAccentBackground);
     accentColorNotifier.removeListener(_refreshAccentBackground);
     _searchController.dispose();
     _focusNode.dispose();
@@ -611,6 +638,12 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
     });
   }
 
+  @override
+  void onWindowClose() async {
+    await windowManager.hide();
+    _wasHidden = true;
+  }
+
   void _handleEmojiSelection(String emoji) async {
     if (!isEmojiSelectionUnlocked) {
       await _openPlansPage();
@@ -686,8 +719,8 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
       _ignoreEmojisInClipboard =
           settings['ignoreEmojisInClipboard'] as bool? ?? true;
       _superAgentsEnabled = settings['superAgentsEnabled'] as bool? ?? false;
-      _latencyEnabled = settings['latencyEnabled'] as bool? ?? false;
-      _latencyMode = settings['latencyMode'] as String? ?? 'quick';
+      _animationsEnabled = settings['animationsEnabled'] as bool? ?? true;
+      _isActivating = _animationsEnabled;
       _enableEmojiPredictions =
           settings['enableEmojiPredictions'] as bool? ?? true;
       final historyRaw = settings['clipboardHistory'] as List<dynamic>?;
@@ -703,6 +736,13 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
           .map((item) => TodoItem.fromJson(item as Map<String, dynamic>))
           .toList();
     });
+    trayPrivateModeNotifier.value = _privateMode;
+    traySuperAgentsNotifier.value = _superAgentsEnabled;
+    if (_animationsEnabled) {
+      Future.delayed(Duration(milliseconds: _animationDurationMs), () {
+        if (mounted) setState(() => _isActivating = false);
+      });
+    }
     final customSoundPath = isDeveloperBuild
         ? settings['customAlarmSoundPath'] as String?
         : null;
@@ -1299,9 +1339,8 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
                               focusedBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(12),
                                 borderSide: BorderSide(
-                                  color: Theme.of(
-                                    context,
-                                  ).colorScheme.primary.withValues(alpha: 0.6),
+                                  color: Theme.of(context).colorScheme.primary
+                                      .withValues(alpha: 0.6),
                                   width: 1.5,
                                 ),
                               ),
@@ -1368,6 +1407,7 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
                                     setState(() {
                                       _privateMode = val;
                                     });
+                                    trayPrivateModeNotifier.value = val;
                                     AppSettings.saveSettings(privateMode: val);
                                   },
                                   onClearHistory: _clearHistory,

@@ -8,6 +8,7 @@ import 'package:omoji/main.dart';
 import 'package:omoji/services/account_service.dart';
 import 'package:omoji/services/alarm_service.dart';
 import 'package:omoji/services/app_settings.dart';
+import 'package:omoji/services/startup_service.dart';
 import 'package:omoji/models/todo_item.dart';
 import 'package:omoji/services/calendar_import_service.dart';
 import 'package:omoji/services/hotkey_service.dart';
@@ -43,8 +44,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   String _superAgentModelType = 'local';
   String _superAgentCloudProvider = 'OpenAI';
   late TextEditingController _superAgentApiKeyController;
-  bool _latencyEnabled = false;
-  String _latencyMode = 'quick';
+  bool _animationsEnabled = true;
+  bool _runAtLogin = true;
   bool _hasUnsavedChanges = false;
 
   @override
@@ -98,8 +99,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
           settings['superAgentCloudProvider'] as String? ?? 'OpenAI';
       _superAgentApiKeyController.text =
           settings['superAgentApiKey'] as String? ?? '';
-      _latencyEnabled = settings['latencyEnabled'] as bool? ?? false;
-      _latencyMode = settings['latencyMode'] as String? ?? 'quick';
+      _animationsEnabled = settings['animationsEnabled'] as bool? ?? true;
+      _runAtLogin = settings['runAtLogin'] as bool? ?? true;
 
       final themeName = settings['theme'] as String?;
       if (themeName == 'light') themeNotifier.value = ThemeMode.light;
@@ -110,8 +111,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
       if (accentVal != null) {
         accentColorNotifier.value = Color(accentVal);
       }
-      accentBackgroundEffectsNotifier.value =
-          settings['accentBackgroundEffects'] as bool? ?? false;
+      accentBackgroundIntensityNotifier.value =
+          (settings['accentBackgroundIntensity'] as num?)?.toDouble() ??
+          ((settings['accentBackgroundEffects'] as bool? ?? false)
+              ? 0.35
+              : 0.0);
 
       _hasUnsavedChanges = false;
     });
@@ -333,7 +337,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (confirmed != true || !mounted) return;
 
     try {
-      final home = Platform.environment['HOME'] ?? '';
+      final home =
+          Platform.environment['HOME'] ??
+          Platform.environment['USERPROFILE'] ??
+          '';
       final configDir = Directory('$home/.config/omoji');
       if (await configDir.exists()) {
         await configDir.delete(recursive: true);
@@ -350,13 +357,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _superAgentModelType = 'local';
       _superAgentCloudProvider = 'OpenAI';
       _superAgentApiKeyController.clear();
-      _latencyEnabled = false;
-      _latencyMode = 'quick';
+      _animationsEnabled = true;
+      _runAtLogin = true;
       themeNotifier.value = ThemeMode.system;
       accentColorNotifier.value = const Color(0xFFB91C1C);
-      accentBackgroundEffectsNotifier.value = false;
+      accentBackgroundIntensityNotifier.value = 0.0;
       _hasUnsavedChanges = false;
     });
+    AppSettings.animationsEnabledNotifier.value = true;
+    await StartupService.setEnabled(true);
 
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -368,10 +377,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _shutDownOmoji() async {
+    if (!_animationsEnabled) {
+      exit(0);
+    }
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final durationMs = !_latencyEnabled
-        ? 3000
-        : (_latencyMode == 'quick' ? 2300 : 3300);
+    const durationMs = 3000;
 
     showDialog(
       context: context,
@@ -423,7 +433,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     await AppSettings.saveSettings(
       theme: themeNotifier.value,
       accentColorValue: accentColorNotifier.value.toARGB32(),
-      accentBackgroundEffects: accentBackgroundEffectsNotifier.value,
+      accentBackgroundIntensity: accentBackgroundIntensityNotifier.value,
       autoPaste: _autoPaste,
       ignoreEmojisInClipboard: _ignoreEmojisInClipboard,
       enableEmojiPredictions: _enableEmojiPredictions,
@@ -431,14 +441,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
       superAgentModelType: _superAgentModelType,
       superAgentCloudProvider: _superAgentCloudProvider,
       superAgentApiKey: _superAgentApiKeyController.text.trim(),
-      latencyEnabled: _latencyEnabled,
-      latencyMode: _latencyMode,
+      animationsEnabled: _animationsEnabled,
+      runAtLogin: _runAtLogin,
       primaryTrigger: primary,
       secondaryTrigger: secondary,
       audioLoopIntervalSeconds: _audioLoopIntervalSeconds,
       customAlarmSoundPath: _customAlarmSoundPath,
       useSystemDefaultSound: _useSystemDefaultSound,
     );
+    traySuperAgentsNotifier.value = _superAgentsEnabled;
+    try {
+      await StartupService.setEnabled(_runAtLogin);
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not update login startup: $error')),
+        );
+      }
+    }
 
     await HotkeyService.registerTriggers(
       primaryTrigger: primary,
@@ -952,9 +972,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               ),
                             ),
                             const SizedBox(height: 8),
-                            ValueListenableBuilder<bool>(
-                              valueListenable: accentBackgroundEffectsNotifier,
-                              builder: (context, useBackgroundTint, _) {
+                            ValueListenableBuilder<double>(
+                              valueListenable:
+                                  accentBackgroundIntensityNotifier,
+                              builder: (context, tintIntensity, _) {
                                 return Container(
                                   decoration: BoxDecoration(
                                     color: cardBg,
@@ -962,40 +983,41 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                     border: Border.all(color: cardBorderColor),
                                   ),
                                   padding: const EdgeInsets.all(10),
-                                  child: Wrap(
-                                    spacing: 8,
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
-                                      ChoiceChip(
-                                        avatar: const Icon(
-                                          Icons.palette_outlined,
-                                          size: 16,
-                                        ),
-                                        label: const Text('Classic'),
-                                        selected: !useBackgroundTint,
-                                        onSelected: (_) async {
-                                          accentBackgroundEffectsNotifier
-                                                  .value =
-                                              false;
-                                          setState(() {});
-                                          await AppSettings.saveSettings(
-                                            accentBackgroundEffects: false,
-                                          );
-                                        },
+                                      Row(
+                                        children: [
+                                          const Icon(
+                                            Icons.format_color_fill_rounded,
+                                            size: 16,
+                                          ),
+                                          const SizedBox(width: 8),
+                                          const Expanded(
+                                            child: Text('Tint background'),
+                                          ),
+                                          Text(
+                                            '${(tintIntensity * 100).round()}%',
+                                          ),
+                                        ],
                                       ),
-                                      ChoiceChip(
-                                        avatar: const Icon(
-                                          Icons.format_color_fill_rounded,
-                                          size: 16,
-                                        ),
-                                        label: const Text('Tint background'),
-                                        selected: useBackgroundTint,
-                                        onSelected: (_) async {
-                                          accentBackgroundEffectsNotifier
+                                      Slider(
+                                        value: tintIntensity.clamp(0.0, 1.0),
+                                        min: 0,
+                                        max: 1,
+                                        divisions: 20,
+                                        label:
+                                            '${(tintIntensity * 100).round()}%',
+                                        onChanged: (value) {
+                                          accentBackgroundIntensityNotifier
                                                   .value =
-                                              true;
+                                              value;
                                           setState(() {});
+                                        },
+                                        onChangeEnd: (value) async {
                                           await AppSettings.saveSettings(
-                                            accentBackgroundEffects: true,
+                                            accentBackgroundIntensity: value,
                                           );
                                         },
                                       ),
@@ -1134,9 +1156,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                             ),
                                             decoration: BoxDecoration(
                                               color: isActive
-                                                  ? Theme.of(
-                                                      context,
-                                                    ).colorScheme.primary
+                                                  ? Theme.of(context)
+                                                        .colorScheme
+                                                        .primary
                                                   : Colors.transparent,
                                               borderRadius:
                                                   BorderRadius.circular(8),
@@ -1202,9 +1224,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                     children: [
                                       Icon(
                                         Icons.keyboard_outlined,
-                                        color: Theme.of(
-                                          context,
-                                        ).colorScheme.primary,
+                                        color: Theme.of(context)
+                                            .colorScheme
+                                            .primary,
                                         size: 20,
                                       ),
                                       const SizedBox(width: 10),
@@ -1250,9 +1272,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                       children: [
                                         Icon(
                                           Icons.bolt_rounded,
-                                          color: Theme.of(
-                                            context,
-                                          ).colorScheme.primary,
+                                          color: Theme.of(context)
+                                              .colorScheme
+                                              .primary,
                                           size: 18,
                                         ),
                                         const SizedBox(width: 10),
@@ -1284,9 +1306,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                           child: Text(
                                             'Primary Default',
                                             style: TextStyle(
-                                              color: Theme.of(
-                                                context,
-                                              ).colorScheme.primary,
+                                              color: Theme.of(context)
+                                                  .colorScheme
+                                                  .primary,
                                               fontSize: 10,
                                               fontWeight: FontWeight.bold,
                                             ),
@@ -1321,9 +1343,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                             hintText: 'e.g. Ctrl + Alt + O',
                                             prefixIcon: Icon(
                                               Icons.bolt_outlined,
-                                              color: Theme.of(
-                                                context,
-                                              ).colorScheme.primary,
+                                              color: Theme.of(context)
+                                                  .colorScheme
+                                                  .primary,
                                               size: 18,
                                             ),
                                             isDense: true,
@@ -1349,9 +1371,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                               .colorScheme
                                               .primary
                                               .withValues(alpha: 0.2),
-                                          foregroundColor: Theme.of(
-                                            context,
-                                          ).colorScheme.primary,
+                                          foregroundColor: Theme.of(context)
+                                              .colorScheme
+                                              .primary,
                                           elevation: 0,
                                           padding: const EdgeInsets.symmetric(
                                             horizontal: 10,
@@ -1415,9 +1437,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                     children: [
                                       Icon(
                                         Icons.paste_rounded,
-                                        color: Theme.of(
-                                          context,
-                                        ).colorScheme.primary,
+                                        color: Theme.of(context)
+                                            .colorScheme
+                                            .primary,
                                         size: 22,
                                       ),
                                       const SizedBox(width: 12),
@@ -1447,9 +1469,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                       ),
                                       Switch(
                                         value: _autoPaste,
-                                        activeThumbColor: Theme.of(
-                                          context,
-                                        ).colorScheme.primary,
+                                        activeThumbColor: Theme.of(context)
+                                            .colorScheme
+                                            .primary,
                                         onChanged: (val) {
                                           setState(() {
                                             _autoPaste = val;
@@ -1464,9 +1486,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                     children: [
                                       Icon(
                                         Icons.do_not_disturb_on_outlined,
-                                        color: Theme.of(
-                                          context,
-                                        ).colorScheme.primary,
+                                        color: Theme.of(context)
+                                            .colorScheme
+                                            .primary,
                                         size: 22,
                                       ),
                                       const SizedBox(width: 12),
@@ -1496,9 +1518,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                       ),
                                       Switch(
                                         value: _ignoreEmojisInClipboard,
-                                        activeThumbColor: Theme.of(
-                                          context,
-                                        ).colorScheme.primary,
+                                        activeThumbColor: Theme.of(context)
+                                            .colorScheme
+                                            .primary,
                                         onChanged: (val) {
                                           setState(() {
                                             _ignoreEmojisInClipboard = val;
@@ -1513,9 +1535,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                     children: [
                                       Icon(
                                         Icons.speed_rounded,
-                                        color: Theme.of(
-                                          context,
-                                        ).colorScheme.primary,
+                                        color: Theme.of(context)
+                                            .colorScheme
+                                            .primary,
                                         size: 22,
                                       ),
                                       const SizedBox(width: 12),
@@ -1525,7 +1547,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                               CrossAxisAlignment.start,
                                           children: [
                                             Text(
-                                              'Latency Control',
+                                              'Animations',
                                               style: TextStyle(
                                                 color: textColor,
                                                 fontSize: 14,
@@ -1534,7 +1556,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                             ),
                                             const SizedBox(height: 2),
                                             Text(
-                                              'Control the speed at which Omoji appears (3s default when disabled)',
+                                              'Show Omoji startup and summoning animations',
                                               style: TextStyle(
                                                 color: subtitleColor,
                                                 fontSize: 11,
@@ -1544,70 +1566,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                         ),
                                       ),
                                       Switch(
-                                        value: _latencyEnabled,
-                                        activeThumbColor: Theme.of(
-                                          context,
-                                        ).colorScheme.primary,
+                                        value: _animationsEnabled,
+                                        activeThumbColor: Theme.of(context)
+                                            .colorScheme
+                                            .primary,
                                         onChanged: (val) {
                                           setState(() {
-                                            _latencyEnabled = val;
+                                            _animationsEnabled = val;
                                             _hasUnsavedChanges = true;
                                           });
                                         },
                                       ),
                                     ],
                                   ),
-                                  if (_latencyEnabled) ...[
-                                    const SizedBox(height: 8),
-                                    Row(
-                                      children: [
-                                        Expanded(
-                                          child: RadioListTile<String>(
-                                            title: Text(
-                                              'Quick (0.7s faster)',
-                                              style: TextStyle(
-                                                color: textColor,
-                                                fontSize: 12,
-                                              ),
-                                            ),
-                                            value: 'quick',
-                                            groupValue: _latencyMode,
-                                            onChanged: (val) {
-                                              if (val == null) return;
-                                              setState(() {
-                                                _latencyMode = val;
-                                                _hasUnsavedChanges = true;
-                                              });
-                                            },
-                                            contentPadding: EdgeInsets.zero,
-                                            dense: true,
-                                          ),
-                                        ),
-                                        Expanded(
-                                          child: RadioListTile<String>(
-                                            title: Text(
-                                              'Smoother (0.3s slower)',
-                                              style: TextStyle(
-                                                color: textColor,
-                                                fontSize: 12,
-                                              ),
-                                            ),
-                                            value: 'smoother',
-                                            groupValue: _latencyMode,
-                                            onChanged: (val) {
-                                              if (val == null) return;
-                                              setState(() {
-                                                _latencyMode = val;
-                                                _hasUnsavedChanges = true;
-                                              });
-                                            },
-                                            contentPadding: EdgeInsets.zero,
-                                            dense: true,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ],
                                   Divider(color: cardBorderColor, height: 16),
                                   Row(
                                     children: [
@@ -1647,9 +1618,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                       ),
                                       Switch(
                                         value: _superAgentsEnabled,
-                                        activeThumbColor: Theme.of(
-                                          context,
-                                        ).colorScheme.primary,
+                                        activeThumbColor: Theme.of(context)
+                                            .colorScheme
+                                            .primary,
                                         onChanged: _toggleSuperAgents,
                                       ),
                                     ],
@@ -1661,9 +1632,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                       children: [
                                         Icon(
                                           Icons.lightbulb_outline_rounded,
-                                          color: Theme.of(
-                                            context,
-                                          ).colorScheme.primary,
+                                          color: Theme.of(context)
+                                              .colorScheme
+                                              .primary,
                                           size: 20,
                                         ),
                                         const SizedBox(width: 12),
@@ -1693,9 +1664,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                         ),
                                         Switch(
                                           value: _enableEmojiPredictions,
-                                          activeThumbColor: Theme.of(
-                                            context,
-                                          ).colorScheme.primary,
+                                          activeThumbColor: Theme.of(context)
+                                              .colorScheme
+                                              .primary,
                                           onChanged: (val) {
                                             setState(() {
                                               _enableEmojiPredictions = val;
@@ -1911,9 +1882,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                     ),
                                     value: true,
                                     groupValue: _useSystemDefaultSound,
-                                    activeColor: Theme.of(
-                                      context,
-                                    ).colorScheme.primary,
+                                    activeColor: Theme.of(context)
+                                        .colorScheme
+                                        .primary,
                                     onChanged: (val) async {
                                       if (val != null) {
                                         setState(() {
@@ -1952,9 +1923,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                     ),
                                     value: false,
                                     groupValue: _useSystemDefaultSound,
-                                    activeColor: Theme.of(
-                                      context,
-                                    ).colorScheme.primary,
+                                    activeColor: Theme.of(context)
+                                        .colorScheme
+                                        .primary,
                                     onChanged: (val) async {
                                       if (val != null) {
                                         if (val == false && !isDeveloperBuild) {
@@ -1979,9 +1950,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                       children: [
                                         Icon(
                                           Icons.music_note_rounded,
-                                          color: Theme.of(
-                                            context,
-                                          ).colorScheme.primary,
+                                          color: Theme.of(context)
+                                              .colorScheme
+                                              .primary,
                                           size: 20,
                                         ),
                                         const SizedBox(width: 10),
@@ -2018,9 +1989,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                       children: [
                                         ElevatedButton.icon(
                                           style: ElevatedButton.styleFrom(
-                                            backgroundColor: Theme.of(
-                                              context,
-                                            ).colorScheme.primary,
+                                            backgroundColor: Theme.of(context)
+                                                .colorScheme
+                                                .primary,
                                             foregroundColor: Colors.white,
                                             visualDensity:
                                                 VisualDensity.compact,
@@ -2048,15 +2019,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                           style: OutlinedButton.styleFrom(
                                             foregroundColor: _isPlayingTest
                                                 ? Colors.redAccent
-                                                : Theme.of(
-                                                    context,
-                                                  ).colorScheme.primary,
+                                                : Theme.of(context)
+                                                      .colorScheme
+                                                      .primary,
                                             side: BorderSide(
                                               color: _isPlayingTest
                                                   ? Colors.redAccent
-                                                  : Theme.of(
-                                                      context,
-                                                    ).colorScheme.primary,
+                                                  : Theme.of(context)
+                                                        .colorScheme
+                                                        .primary,
                                             ),
                                             visualDensity:
                                                 VisualDensity.compact,
@@ -2180,9 +2151,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                             _audioLoopIntervalSeconds,
                                           ),
                                           style: TextStyle(
-                                            color: Theme.of(
-                                              context,
-                                            ).colorScheme.primary,
+                                            color: Theme.of(context)
+                                                .colorScheme
+                                                .primary,
                                             fontSize: 13,
                                             fontWeight: FontWeight.bold,
                                           ),
@@ -2198,9 +2169,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                     min: 10.0,
                                     max: 93.0,
                                     divisions: 83,
-                                    activeColor: Theme.of(
-                                      context,
-                                    ).colorScheme.primary,
+                                    activeColor: Theme.of(context)
+                                        .colorScheme
+                                        .primary,
                                     label: _formatIntervalLabel(
                                       _audioLoopIntervalSeconds,
                                     ),
@@ -2236,6 +2207,54 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
                             const SizedBox(height: 24),
 
+                            // Section: Startup
+                            Text(
+                              'Startup',
+                              style: TextStyle(
+                                color: subtitleColor,
+                                fontSize: 13,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            Container(
+                              decoration: BoxDecoration(
+                                color: cardBg,
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: cardBorderColor),
+                              ),
+                              child: CheckboxListTile(
+                                value: _runAtLogin,
+                                activeColor: Theme.of(context)
+                                    .colorScheme
+                                    .primary,
+                                title: Text(
+                                  'Run at login',
+                                  style: TextStyle(
+                                    color: textColor,
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                subtitle: Text(
+                                  'Start Omoji automatically when you sign in to your computer.',
+                                  style: TextStyle(
+                                    color: subtitleColor,
+                                    fontSize: 11,
+                                  ),
+                                ),
+                                onChanged: (value) {
+                                  if (value == null) return;
+                                  setState(() {
+                                    _runAtLogin = value;
+                                    _hasUnsavedChanges = true;
+                                  });
+                                },
+                              ),
+                            ),
+                            const SizedBox(height: 24),
+
                             // Section: Account access
                             Text(
                               'Account & Calendar Import',
@@ -2262,9 +2281,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                     children: [
                                       Icon(
                                         Icons.account_circle_outlined,
-                                        color: Theme.of(
-                                          context,
-                                        ).colorScheme.primary,
+                                        color: Theme.of(context)
+                                            .colorScheme
+                                            .primary,
                                       ),
                                       const SizedBox(width: 10),
                                       Expanded(
@@ -2342,9 +2361,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             InkWell(
                               onTap: _openFeedbackEmail,
                               borderRadius: BorderRadius.circular(12),
-                              splashColor: Theme.of(
-                                context,
-                              ).colorScheme.primary.withValues(alpha: 0.1),
+                              splashColor: Theme.of(context).colorScheme.primary
+                                  .withValues(alpha: 0.1),
                               highlightColor: Colors.transparent,
                               child: Container(
                                 width: double.infinity,
@@ -2414,9 +2432,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                             Text(
                                               'Aeroclipse Pty Ltd',
                                               style: TextStyle(
-                                                color: Theme.of(
-                                                  context,
-                                                ).colorScheme.primary,
+                                                color: Theme.of(context)
+                                                    .colorScheme
+                                                    .primary,
                                                 fontSize: 12,
                                                 fontWeight: FontWeight.bold,
                                               ),
@@ -2456,9 +2474,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                             context: context,
                                             label: 'PayPal',
                                             icon: Icons.open_in_new_rounded,
-                                            color: Theme.of(
-                                              context,
-                                            ).colorScheme.primary,
+                                            color: Theme.of(context)
+                                                .colorScheme
+                                                .primary,
                                             isActive: false,
                                             onTap: _openPayPalPayment,
                                           ),

@@ -7,10 +7,18 @@ import 'package:flutter/material.dart';
 import 'package:omoji/models/alarm_item.dart';
 import 'package:omoji/models/clipboard_item.dart';
 import 'package:omoji/models/todo_item.dart';
+import 'package:omoji/services/private_file_permissions.dart';
 
 class AppSettings {
+  static final ValueNotifier<bool?> animationsEnabledNotifier = ValueNotifier(
+    null,
+  );
+
   static File get _configFile {
-    final home = Platform.environment['HOME'] ?? '';
+    final home =
+        Platform.environment['HOME'] ??
+        Platform.environment['USERPROFILE'] ??
+        '';
     return File('$home/.config/omoji/settings.json');
   }
 
@@ -18,6 +26,8 @@ class AppSettings {
     try {
       final file = _configFile;
       if (await file.exists()) {
+        await PrivateFilePermissions.secureDirectory(file.parent);
+        await PrivateFilePermissions.secureFile(file);
         final content = await file.readAsString();
         return jsonDecode(content) as Map<String, dynamic>;
       }
@@ -44,7 +54,7 @@ class AppSettings {
     bool? timerIsPaused,
     int? timerRemainingSeconds,
     int? accentColorValue,
-    bool? accentBackgroundEffects,
+    double? accentBackgroundIntensity,
     int? timerOvertimeStartTimestampMs,
     bool? stopwatchIsRunning,
     int? stopwatchStartTimestampMs,
@@ -62,15 +72,13 @@ class AppSettings {
     String? superAgentModelType,
     String? superAgentCloudProvider,
     String? superAgentApiKey,
-    bool? latencyEnabled,
-    String? latencyMode,
+    bool? animationsEnabled,
+    bool? runAtLogin,
   }) async {
     // I Imagine something/ convert a hater from thin air and materialize it into a file (app. (see policy))
     try {
       final file = _configFile;
-      if (!await file.parent.exists()) {
-        await file.parent.create(recursive: true);
-      }
+      await PrivateFilePermissions.secureDirectory(file.parent);
 
       Map<String, dynamic> current = {};
       if (await file.exists()) {
@@ -140,8 +148,8 @@ class AppSettings {
       if (accentColorValue != null) {
         current['accentColor'] = accentColorValue;
       }
-      if (accentBackgroundEffects != null) {
-        current['accentBackgroundEffects'] = accentBackgroundEffects;
+      if (accentBackgroundIntensity != null) {
+        current['accentBackgroundIntensity'] = accentBackgroundIntensity;
       }
       if (timerOvertimeStartTimestampMs != null) {
         current['timerOvertimeStartTimestampMs'] =
@@ -199,14 +207,20 @@ class AppSettings {
       if (superAgentApiKey != null) {
         current['superAgentApiKey'] = superAgentApiKey;
       }
-      if (latencyEnabled != null) {
-        current['latencyEnabled'] = latencyEnabled;
+      if (animationsEnabled != null) {
+        current['animationsEnabled'] = animationsEnabled;
+        current.remove('latencyEnabled');
+        current.remove('latencyMode');
       }
-      if (latencyMode != null) {
-        current['latencyMode'] = latencyMode;
+      if (runAtLogin != null) {
+        current['runAtLogin'] = runAtLogin;
       }
 
       await file.writeAsString(jsonEncode(current));
+      await PrivateFilePermissions.secureFile(file);
+      if (animationsEnabled != null) {
+        animationsEnabledNotifier.value = animationsEnabled;
+      }
     } catch (e) {
       debugPrint('Failed to save settings: $e');
     }
