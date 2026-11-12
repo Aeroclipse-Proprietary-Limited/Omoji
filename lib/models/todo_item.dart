@@ -9,6 +9,7 @@ class TodoItem {
   DateTime targetDateTime;
   bool isCompleted;
   final DateTime createdAt;
+  DateTime? completedAt;
   bool hasNotified;
   String recurrence; // 'none', 'daily', 'weekly', 'monthly', 'yearly'
 
@@ -19,24 +20,28 @@ class TodoItem {
     required this.targetDateTime,
     this.isCompleted = false,
     DateTime? createdAt,
+    this.completedAt,
     this.hasNotified = false,
     this.recurrence = 'none',
   }) : createdAt = createdAt ?? DateTime.now();
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'title': title,
-        'description': description,
-        'targetDateTime': targetDateTime.toIso8601String(),
-        'isCompleted': isCompleted,
-        'createdAt': createdAt.toIso8601String(),
-        'hasNotified': hasNotified,
-        'recurrence': recurrence,
-      };
+    'id': id,
+    'title': title,
+    'description': description,
+    'targetDateTime': targetDateTime.toIso8601String(),
+    'isCompleted': isCompleted,
+    'createdAt': createdAt.toIso8601String(),
+    'completedAt': completedAt?.toIso8601String(),
+    'hasNotified': hasNotified,
+    'recurrence': recurrence,
+  };
 
   factory TodoItem.fromJson(Map<String, dynamic> json) {
     return TodoItem(
-      id: (json['id'] as String?) ?? DateTime.now().millisecondsSinceEpoch.toString(),
+      id:
+          (json['id'] as String?) ??
+          DateTime.now().millisecondsSinceEpoch.toString(),
       title: (json['title'] as String?) ?? 'Task',
       description: (json['description'] as String?) ?? '',
       targetDateTime: json['targetDateTime'] != null
@@ -46,6 +51,9 @@ class TodoItem {
       createdAt: json['createdAt'] != null
           ? DateTime.parse(json['createdAt'] as String)
           : DateTime.now(),
+      completedAt: json['completedAt'] != null
+          ? DateTime.parse(json['completedAt'] as String)
+          : null,
       hasNotified: (json['hasNotified'] as bool?) ?? false,
       recurrence: (json['recurrence'] as String?) ?? 'none',
     );
@@ -66,10 +74,22 @@ class TodoItem {
           next = next.add(const Duration(days: 7));
           break;
         case 'monthly':
-          next = DateTime(next.year, next.month + 1, next.day, next.hour, next.minute);
+          next = DateTime(
+            next.year,
+            next.month + 1,
+            next.day,
+            next.hour,
+            next.minute,
+          );
           break;
         case 'yearly':
-          next = DateTime(next.year + 1, next.month, next.day, next.hour, next.minute);
+          next = DateTime(
+            next.year + 1,
+            next.month,
+            next.day,
+            next.hour,
+            next.minute,
+          );
           break;
         default:
           return false;
@@ -78,6 +98,7 @@ class TodoItem {
 
     targetDateTime = next;
     isCompleted = false;
+    completedAt = null;
     hasNotified = false;
     return true;
   }
@@ -96,6 +117,13 @@ class TodoItem {
         return '';
     }
   }
+
+  bool get isDelayed =>
+      isCompleted &&
+      completedAt != null &&
+      completedAt!.isAfter(targetDateTime);
+
+  bool get isOnTimeCompleted => isCompleted && !isDelayed;
 
   String get timeRemainingSummary {
     if (isCompleted) return 'Completed';

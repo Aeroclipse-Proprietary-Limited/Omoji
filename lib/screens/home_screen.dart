@@ -1,29 +1,28 @@
 // lib/screens/home_screen.dart
 
-import 'dart:ui';
-import 'dart:io';
 import 'dart:async';
-import 'dart:convert';
+import 'dart:io';
+import 'dart:ui';
 
+import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:file_selector/file_selector.dart';
 import 'package:omoji/build_config.dart';
 import 'package:omoji/data/emoji_map.dart';
+import 'package:omoji/main.dart';
 import 'package:omoji/models/alarm_item.dart';
 import 'package:omoji/models/chat_message.dart';
 import 'package:omoji/models/clipboard_item.dart';
 import 'package:omoji/models/todo_item.dart';
-import 'package:omoji/main.dart';
 import 'package:omoji/services/alarm_service.dart';
 import 'package:omoji/services/app_settings.dart';
 import 'package:omoji/services/emoji_prediction_service.dart';
 import 'package:omoji/services/hotkey_service.dart';
 import 'package:omoji/services/logger_service.dart';
-import 'package:omoji/services/stopwatch_service.dart';
+import 'package:omoji/services/paste_service.dart';
 import 'package:omoji/services/timer_service.dart';
-import 'package:omoji/widgets/clipboard_view.dart';
 import 'package:omoji/widgets/clipboard_chat_view.dart';
+import 'package:omoji/widgets/clipboard_view.dart';
 import 'package:omoji/widgets/clock_view.dart';
 import 'package:omoji/widgets/emoji_view.dart';
 import 'package:omoji/widgets/full_version_prompt.dart';
@@ -53,8 +52,19 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
   bool _privateMode = false;
   bool _autoPaste = true;
   bool _ignoreEmojisInClipboard = true;
+  bool _superAgentsEnabled = false;
+  bool _animationsEnabled = AppSettings.animationsEnabledNotifier.value ?? true;
+  bool _isActivating = AppSettings.animationsEnabledNotifier.value ?? true;
+  bool _wasHidden = false;
+  bool _isSummoned = false;
 
-  bool _enableEmojiPredictions = true;
+  int get _animationDurationMs {
+    return _animationsEnabled ? 3000 : 0;
+  }
+
+  bool _enableEmojiPredictions = false;
+  bool get _effectiveEmojiPredictions =>
+      _superAgentsEnabled && _enableEmojiPredictions;
   List<Map<String, String>> _currentPredictions = [];
   String? _dismissedPredictionWord;
   bool _isFloatingOverlayMode = false;
@@ -91,7 +101,8 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
     super.initState();
     _windowChannel.setMethodCallHandler(_handleNativeMethodCall);
     windowManager.addListener(this);
-    AppSettings.dataImportRevision.addListener(_handleImportedData);
+    accentBackgroundIntensityNotifier.addListener(_refreshAccentBackground);
+    accentColorNotifier.addListener(_refreshAccentBackground);
 
     _focusNode = FocusNode(
       onKeyEvent: (node, event) {
@@ -146,6 +157,12 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
 
     _loadClipboardSettings();
     _startClipboardMonitoring();
+    omojiSummonedNotifier.addListener(_handleSummoned);
+    trayPrivateModeRequestNotifier.addListener(_handleTrayPrivateModeRequest);
+    trayChatRequestNotifier.addListener(_handleTrayChatRequest);
+    AppSettings.animationsEnabledNotifier.addListener(
+      _handleAnimationsSettingChanged,
+    );
 
     EmojiPredictionService.init();
     EmojiPredictionService.currentEvent.addListener(
@@ -159,8 +176,49 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
     });
   }
 
+  void _handleAnimationsSettingChanged() {
+    final enabled = AppSettings.animationsEnabledNotifier.value;
+    if (!mounted || enabled == null || enabled == _animationsEnabled) return;
+    setState(() {
+      _animationsEnabled = enabled;
+      if (!enabled) {
+        _isActivating = false;
+        _isSummoned = false;
+      }
+    });
+  }
+
+  void _handleSummoned() {
+    if (!mounted || _isActivating || !_animationsEnabled) return;
+    setState(() {
+      _isSummoned = true;
+    });
+    Future.delayed(Duration(milliseconds: _animationDurationMs), () {
+      if (mounted) {
+        setState(() {
+          _isSummoned = false;
+        });
+      }
+    });
+  }
+
+  void _handleTrayPrivateModeRequest() {
+    if (!mounted) return;
+    final enabled = !_privateMode;
+    setState(() => _privateMode = enabled);
+    trayPrivateModeNotifier.value = enabled;
+    AppSettings.saveSettings(privateMode: enabled);
+  }
+
+  Future<void> _handleTrayChatRequest() async {
+    final settings = await AppSettings.loadSettings();
+    if (!mounted || settings['superAgentsEnabled'] != true) return;
+    setState(() => _superAgentsEnabled = true);
+    await _startClipboardChat();
+  }
+
   void _handleGlobalPredictionEvent() async {
-    if (!mounted || !_enableEmojiPredictions) return;
+    if (!mounted || !_effectiveEmojiPredictions) return;
 
     final event = EmojiPredictionService.currentEvent.value;
     if (event == null) return;
@@ -195,14 +253,13 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
           }
 
           try {
-            await const MethodChannel(
-              'com.aeroclipse.omoji/window',
-            ).invokeMethod('showOverlay', {
-              'x': targetX,
-              'y': targetY,
-              'width': 440.0,
-              'height': 60.0,
-            });
+            await const MethodChannel('com.aeroclipse.omoji/window')
+                .invokeMethod('showOverlay', {
+                  'x': targetX,
+                  'y': targetY,
+                  'width': 440.0,
+                  'height': 60.0,
+                });
           } catch (e) {
             debugPrint('Error showing native GTK overlay: $e');
           }
@@ -231,15 +288,14 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
         _globalPredictionWord = "";
       });
       try {
-        await const MethodChannel(
-          'com.aeroclipse.omoji/window',
-        ).invokeMethod('hideOverlay');
+        await const MethodChannel('com.aeroclipse.omoji/window')
+            .invokeMethod('hideOverlay');
       } catch (_) {}
     }
   }
 
   List<Map<String, String>> _getEmojiPredictions(String query) {
-    if (!_enableEmojiPredictions || _selectedTab == 'clock') return [];
+    if (!_effectiveEmojiPredictions || _selectedTab == 'clock') return [];
 
     final trimmed = query.trim();
     if (trimmed.isEmpty) return [];
@@ -320,7 +376,7 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
       ),
       child: Row(
         children: [
-          Icon(Icons.auto_awesome_rounded, color: accentColor, size: 18),
+          Icon(Icons.lightbulb_outline_rounded, color: accentColor, size: 18),
           const SizedBox(width: 8),
           Text(
             '"$lastWord"',
@@ -465,7 +521,16 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
   void dispose() {
     _windowChannel.setMethodCallHandler(null);
     windowManager.removeListener(this);
-    AppSettings.dataImportRevision.removeListener(_handleImportedData);
+    omojiSummonedNotifier.removeListener(_handleSummoned);
+    trayPrivateModeRequestNotifier.removeListener(
+      _handleTrayPrivateModeRequest,
+    );
+    trayChatRequestNotifier.removeListener(_handleTrayChatRequest);
+    AppSettings.animationsEnabledNotifier.removeListener(
+      _handleAnimationsSettingChanged,
+    );
+    accentBackgroundIntensityNotifier.removeListener(_refreshAccentBackground);
+    accentColorNotifier.removeListener(_refreshAccentBackground);
     _searchController.dispose();
     _focusNode.dispose();
     _keyboardFocusNode.dispose();
@@ -475,31 +540,8 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
     super.dispose();
   }
 
-  Future<void> _handleImportedData() async {
-    await TimerService.init();
-    await StopwatchService.init();
-
-    final settings = await AppSettings.loadSettings();
-    if (!mounted) return;
-    final themeName = settings['theme'] as String?;
-    themeNotifier.value = switch (themeName) {
-      'light' => ThemeMode.light,
-      'dark' => ThemeMode.dark,
-      _ => ThemeMode.system,
-    };
-    final accentValue = settings['accentColor'] as int?;
-    accentColorNotifier.value = Color(accentValue ?? 0xFFB91C1C);
-    final savedDateFormat = settings['dateFormat'] as String?;
-    dateFormatNotifier.value = savedDateFormat == 'yyyy/mm/dd'
-        ? 'yyyy/mm/dd'
-        : 'dd/mm/yyyy';
-    const validTodoViews = {'all', 'upcoming', 'missed', 'completed'};
-    final todoView = settings['todoDefaultView'] as String?;
-    todoDefaultViewNotifier.value =
-        todoView != null && validTodoViews.contains(todoView)
-        ? todoView
-        : 'upcoming';
-    await _loadClipboardSettings();
+  void _refreshAccentBackground() {
+    if (mounted) setState(() {});
   }
 
   Future<void> _showClockUpgradeDialog() async {
@@ -567,6 +609,10 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
 
   @override
   void onWindowFocus() {
+    if (_wasHidden && !_isActivating) {
+      _handleSummoned();
+    }
+    _wasHidden = false;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted && _selectedTab != 'clock') {
         _focusNode.requestFocus();
@@ -585,212 +631,17 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
       return;
     }
     await windowManager.hide();
+    _wasHidden = true;
     _searchController.clear();
     setState(() {
       _editingIndex = null;
     });
   }
 
-  Future<void> _injectTextOrPaste(String text) async {
-    if (!_autoPaste) {
-      await LoggerService.info('Auto-paste skipped because it is disabled.');
-      return;
-    }
-
-    if (Platform.isLinux) {
-      // Keep the Linux fallback order in omoji_paste.py aligned with commit
-      // 261a3f8: uinput, xdotool, wtype, ydotool, then direct text fallbacks.
-      try {
-        final exeDir = File(Platform.resolvedExecutable).parent.path;
-        final home = Platform.environment['HOME'] ?? '';
-        final scriptLocations = <String>[
-          '$exeDir/lib/scripts/omoji_paste.py',
-          '$home/.local/lib/omoji/lib/scripts/omoji_paste.py',
-          'scripts/omoji_paste.py',
-        ];
-        for (final loc in scriptLocations) {
-          if (File(loc).existsSync()) {
-            final res = await Process.run('python3', [
-              loc,
-              text,
-            ]).timeout(const Duration(seconds: 2));
-            if (res.exitCode == 0) {
-              await LoggerService.info(
-                'Auto-paste command succeeded: omoji_paste.py ($loc)',
-              );
-              return;
-            }
-          }
-        }
-      } catch (e) {
-        debugPrint('omoji_paste.py error: $e');
-      }
-
-      final isWayland =
-          Platform.environment['WAYLAND_DISPLAY']?.isNotEmpty == true ||
-          Platform.environment['XDG_SESSION_TYPE'] == 'wayland';
-
-      Future<bool> runPasteTool(
-        String label,
-        String executable,
-        List<String> arguments,
-      ) async {
-        try {
-          final result = await Process.run(
-            executable,
-            arguments,
-          ).timeout(const Duration(seconds: 2));
-          if (result.exitCode == 0) {
-            await LoggerService.info('Auto-paste command succeeded: $label');
-            return true;
-          }
-          await LoggerService.warn(
-            'Auto-paste command failed: $label exited ${result.exitCode}: '
-                    '${result.stderr}'
-                .trim(),
-          );
-          debugPrint(
-            '$label exited ${result.exitCode}: ${result.stderr}'.trim(),
-          );
-        } on ProcessException {
-          await LoggerService.warn(
-            'Auto-paste command unavailable: $label is not installed or could not be started.',
-          );
-          debugPrint('$label is not installed or could not be started.');
-        } on TimeoutException {
-          await LoggerService.warn('Auto-paste command timed out: $label');
-          debugPrint('$label timed out.');
-        } catch (error) {
-          await LoggerService.error('Auto-paste command failed: $label', error);
-          debugPrint('$label failed: $error');
-        }
-        return false;
-      }
-
-      // On Wayland, xdotool can report success without sending keys to the
-      // native target. Only use it on X11; ydotool needs the active daemon.
-      // Keep ydotool's named 'ctrl+v' chord in sync with try_ydotool_paste in
-      // scripts/omoji_paste.py. Do not replace it with raw keycode arguments:
-      // ydotool 0.1.8 types their leading digits as "2442" instead of pasting.
-      final pasteCommands = isWayland
-          ? <(String, String, List<String>)>[
-              ('ydotool', 'ydotool', ['key', 'ctrl+v']),
-              ('wtype', 'wtype', ['-M', 'ctrl', '-k', 'v', '-m', 'ctrl']),
-            ]
-          : <(String, String, List<String>)>[
-              ('xdotool', 'xdotool', ['key', '--clearmodifiers', 'ctrl+v']),
-              ('wtype', 'wtype', ['-M', 'ctrl', '-k', 'v', '-m', 'ctrl']),
-              ('ydotool', 'ydotool', ['key', 'ctrl+v']),
-            ];
-
-      for (final (label, executable, arguments) in pasteCommands) {
-        if (await runPasteTool(label, executable, arguments)) return;
-      }
-
-      await runPasteTool('wtype text fallback', 'wtype', ['--', text]);
-      if (!isWayland) {
-        await runPasteTool('xdotool text fallback', 'xdotool', [
-          'type',
-          '--clearmodifiers',
-          text,
-        ]);
-      }
-    } else if (Platform.isMacOS) {
-      try {
-        await Process.run('osascript', [
-          '-e',
-          'tell application "System Events" to keystroke "v" using command down',
-        ]);
-      } catch (e) {
-        debugPrint("macOS AppleScript paste error: $e");
-      }
-    } else if (Platform.isWindows) {
-      try {
-        await Process.run('powershell', [
-          '-c',
-          "Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('^v')",
-        ]);
-      } catch (e) {
-        debugPrint("Windows PowerShell paste error: $e");
-      }
-    }
-  }
-
-  Future<bool> _setSelectionClipboard(String text) async {
-    try {
-      final isWayland =
-          Platform.isLinux &&
-          (Platform.environment['WAYLAND_DISPLAY']?.isNotEmpty == true ||
-              Platform.environment['XDG_SESSION_TYPE'] == 'wayland');
-
-      if (isWayland) {
-        await Clipboard.setData(ClipboardData(text: text));
-
-        final copyProcess = await Process.start('wl-copy', [
-          '--type',
-          'text/plain;charset=utf-8',
-          '--',
-          text,
-        ]);
-        final stderr = StringBuffer();
-        final stdoutSubscription = copyProcess.stdout.listen((_) {});
-        final stderrSubscription = copyProcess.stderr
-            .transform(utf8.decoder)
-            .listen(stderr.write);
-        final copyExitCode = await copyProcess.exitCode.timeout(
-          const Duration(seconds: 2),
-          onTimeout: () {
-            copyProcess.kill();
-            throw TimeoutException('wl-copy did not start in time.');
-          },
-        );
-        await stdoutSubscription.cancel();
-        await stderrSubscription.cancel();
-        if (copyExitCode != 0) {
-          final errorMessage = stderr.toString().trim();
-          throw StateError(
-            'wl-copy exited with code $copyExitCode'
-            '${errorMessage.isEmpty ? '' : ': $errorMessage'}',
-          );
-        }
-
-        final verifyResult = await Process.run('wl-paste', [
-          '--no-newline',
-        ]).timeout(const Duration(seconds: 2));
-        if (verifyResult.exitCode != 0) {
-          final stderr = (verifyResult.stderr as String).trim();
-          throw StateError(
-            'wl-paste exited with code ${verifyResult.exitCode}'
-            '${stderr.isEmpty ? '' : ': $stderr'}',
-          );
-        }
-        if (verifyResult.stdout != text) {
-          throw StateError(
-            'Clipboard read-back did not match the selected text '
-            '(expected ${text.runes.length} characters, '
-            'received ${(verifyResult.stdout as String).runes.length}).',
-          );
-        }
-      } else {
-        await Clipboard.setData(ClipboardData(text: text));
-      }
-
-      _lastClipboardText = text;
-      return true;
-    } catch (error) {
-      await LoggerService.error('Clipboard update failed: $error');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Could not update the clipboard: $error. '
-              'Selection was not pasted.',
-            ),
-          ),
-        );
-      }
-      return false;
-    }
+  @override
+  void onWindowClose() async {
+    await windowManager.hide();
+    _wasHidden = true;
   }
 
   void _handleEmojiSelection(String emoji) async {
@@ -816,14 +667,24 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
     await _dismissWindowForPaste();
 
     try {
-      if (!await _setSelectionClipboard(emoji)) {
+      final success = await PasteService.setClipboard(emoji);
+      if (!success) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Could not update the clipboard. Selection was not pasted.',
+              ),
+            ),
+          );
+        }
         await _restoreWindowAfterClipboardFailure();
         return;
       }
       if (isFloating && wordToClear.isNotEmpty) {
         EmojiPredictionService.requestAutofillBackspaces(wordToClear.length);
       }
-      await _injectTextOrPaste(emoji);
+      await PasteService.pasteText(emoji, enabled: _autoPaste);
     } finally {
       _isPastingSelection = false;
     }
@@ -859,6 +720,9 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
       _autoPaste = settings['autoPaste'] as bool? ?? true;
       _ignoreEmojisInClipboard =
           settings['ignoreEmojisInClipboard'] as bool? ?? true;
+      _superAgentsEnabled = settings['superAgentsEnabled'] as bool? ?? false;
+      _animationsEnabled = settings['animationsEnabled'] as bool? ?? true;
+      _isActivating = _animationsEnabled;
       _enableEmojiPredictions =
           settings['enableEmojiPredictions'] as bool? ?? true;
       final historyRaw = settings['clipboardHistory'] as List<dynamic>?;
@@ -874,6 +738,13 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
           .map((item) => TodoItem.fromJson(item as Map<String, dynamic>))
           .toList();
     });
+    trayPrivateModeNotifier.value = _privateMode;
+    traySuperAgentsNotifier.value = _superAgentsEnabled;
+    if (_animationsEnabled) {
+      Future.delayed(Duration(milliseconds: _animationDurationMs), () {
+        if (mounted) setState(() => _isActivating = false);
+      });
+    }
     final customSoundPath = isDeveloperBuild
         ? settings['customAlarmSoundPath'] as String?
         : null;
@@ -981,11 +852,21 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
     // and sending the paste shortcut.
     await _dismissWindowForPaste();
     try {
-      if (!await _setSelectionClipboard(text)) {
+      final success = await PasteService.setClipboard(text);
+      if (!success) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Could not update the clipboard. Selection was not pasted.',
+              ),
+            ),
+          );
+        }
         await _restoreWindowAfterClipboardFailure();
         return;
       }
-      await _injectTextOrPaste(text);
+      await PasteService.pasteText(text, enabled: _autoPaste);
     } finally {
       _isPastingSelection = false;
     }
@@ -1195,14 +1076,26 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
                       end: Alignment.bottomRight,
                       colors: isDark
                           ? [
-                              const Color(0xFF2E2E2E).withValues(alpha: 0.65),
-                              const Color(0xFF1A1A1A).withValues(alpha: 0.45),
-                              const Color(0xFF121212).withValues(alpha: 0.75),
+                              applyAccentBackgroundEffect(
+                                const Color(0xFF2E2E2E).withValues(alpha: 0.65),
+                              ),
+                              applyAccentBackgroundEffect(
+                                const Color(0xFF1A1A1A).withValues(alpha: 0.45),
+                              ),
+                              applyAccentBackgroundEffect(
+                                const Color(0xFF121212).withValues(alpha: 0.75),
+                              ),
                             ]
                           : [
-                              const Color(0xFFFFFFFF).withValues(alpha: 0.65),
-                              const Color(0xFFE0E0E0).withValues(alpha: 0.45),
-                              const Color(0xFFF5F5F5).withValues(alpha: 0.75),
+                              applyAccentBackgroundEffect(
+                                const Color(0xFFFFFFFF).withValues(alpha: 0.65),
+                              ),
+                              applyAccentBackgroundEffect(
+                                const Color(0xFFE0E0E0).withValues(alpha: 0.45),
+                              ),
+                              applyAccentBackgroundEffect(
+                                const Color(0xFFF5F5F5).withValues(alpha: 0.75),
+                              ),
                             ],
                       stops: const [0.0, 0.4, 1.0],
                     ),
@@ -1391,7 +1284,7 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
                           ),
                         ],
                         if (_selectedTab != 'clock' && !_isChatMode) ...[
-                          if (_enableEmojiPredictions &&
+                          if (_effectiveEmojiPredictions &&
                               _currentPredictions.isNotEmpty) ...[
                             const SizedBox(height: 8),
                             _buildEmojiPredictionBar(isDark, textColor),
@@ -1407,7 +1300,7 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
                             readOnly: !isEmojiSelectionUnlocked,
                             style: TextStyle(color: textColor),
                             onSubmitted: (val) {
-                              if (_enableEmojiPredictions &&
+                              if (_effectiveEmojiPredictions &&
                                   _currentPredictions.isNotEmpty) {
                                 final topEmoji =
                                     _currentPredictions.first['char']!;
@@ -1427,12 +1320,18 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
                                 Icons.search,
                                 color: Theme.of(context).colorScheme.primary,
                               ),
-                              suffixIcon: _selectedTab == 'clipboard'
+                              suffixIcon:
+                                  ((_selectedTab == 'clipboard' ||
+                                          _selectedTab == 'emojis') &&
+                                      _superAgentsEnabled)
                                   ? IconButton(
                                       tooltip: 'Switch to Omoji chat',
                                       onPressed: _startClipboardChat,
-                                      icon: const Icon(
-                                        Icons.auto_awesome_rounded,
+                                      icon: Image.asset(
+                                        'lib/assets/gifs/SIMPLE INTELLIGENCE.gif',
+                                        width: 24,
+                                        height: 24,
+                                        fit: BoxFit.contain,
                                       ),
                                     )
                                   : null,
@@ -1448,9 +1347,8 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
                               focusedBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(12),
                                 borderSide: BorderSide(
-                                  color: Theme.of(
-                                    context,
-                                  ).colorScheme.primary.withValues(alpha: 0.6),
+                                  color: Theme.of(context).colorScheme.primary
+                                      .withValues(alpha: 0.6),
                                   width: 1.5,
                                 ),
                               ),
@@ -1517,6 +1415,7 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
                                     setState(() {
                                       _privateMode = val;
                                     });
+                                    trayPrivateModeNotifier.value = val;
                                     AppSettings.saveSettings(privateMode: val);
                                   },
                                   onClearHistory: _clearHistory,
@@ -1531,6 +1430,70 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
             ),
           ),
           _buildRingingOverlay(isDark, textColor),
+          if (_isSummoned)
+            Positioned.fill(
+              child: Container(
+                color: isDark
+                    ? const Color(0xFF131417)
+                    : const Color(0xFFF3F0EA),
+                child: Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Image.asset(
+                        isDark
+                            ? 'lib/assets/gifs/Summoning dark v1.gif'
+                            : 'lib/assets/gifs/Summoning.gif',
+                        width: 190,
+                        height: 190,
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        'A smile goes a long way',
+                        style: TextStyle(
+                          color: isDark ? Colors.white : Colors.black87,
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          if (_isActivating)
+            Positioned.fill(
+              child: Container(
+                color: isDark
+                    ? const Color(0xFF131417)
+                    : const Color(0xFFF3F0EA),
+                child: Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Image.asset(
+                        isDark
+                            ? 'lib/assets/gifs/intro dark.gif'
+                            : 'lib/assets/gifs/Intro light v1.gif',
+                        width: 190,
+                        height: 190,
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        'Starting Omoji...',
+                        style: TextStyle(
+                          color: isDark ? Colors.white : Colors.black87,
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
         ],
       ),
     );

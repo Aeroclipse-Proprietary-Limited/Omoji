@@ -18,12 +18,12 @@ description: |
 
   Found a bug or have an idea? Open an issue on GitHub; every report is read.
 
-license: Proprietary
+license: proprietary
 contact: mailto:godlyttn@outlook.com
 website: https://aeroclipse-bw.web.app
-source-code: https://aeroclipse-bw.web.app
+source-code: https://github.com/Aeroclipse-Proprietary-Limited/Omoji
 issues: https://github.com/Aeroclipse-Proprietary-Limited/Omoji/issues
-icon: lib/assets/imgs/app-logo.png
+icon: lib/assets/imgs/App logo (dark).png
 
 grade: stable
 confinement: strict
@@ -31,7 +31,6 @@ confinement: strict
 apps:
   omoji:
     command: omoji
-    autostart: omoji.desktop
     extensions: [gnome]
     # The gnome extension already provides desktop, desktop-legacy,
     # wayland and x11, so only list what it doesn't cover.
@@ -51,6 +50,8 @@ parts:
       - ninja-build
       - pkg-config
       - libgtk-3-dev
+      - libx11-dev
+      - libxi-dev
       - libkeybinder-3.0-dev
     stage-packages:
       - python3          # drop if the bundled scripts don't need it (saves size)

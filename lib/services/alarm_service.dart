@@ -2,6 +2,7 @@
 
 import 'dart:async';
 import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:omoji/models/alarm_item.dart';
 import 'package:omoji/models/todo_item.dart';
@@ -28,6 +29,7 @@ class AlarmService {
   );
   static final ValueNotifier<String?> activeRingingTimer = ValueNotifier(null);
   static final ValueNotifier<String?> silencedAlarmNotice = ValueNotifier(null);
+  static bool _initializedLogged = false;
 
   static Future<void> init(
     List<AlarmItem> alarms, {
@@ -44,9 +46,12 @@ class AlarmService {
     if (loopIntervalSeconds != null)
       audioLoopIntervalSeconds = loopIntervalSeconds.clamp(10, 93);
     if (enableDucking != null) enableAudioDucking = enableDucking;
-    LoggerService.info(
-      'AlarmService initialized with ${_alarms.length} alarm(s) and ${_todos.length} todo(s).',
-    );
+    if (!_initializedLogged) {
+      _initializedLogged = true;
+      LoggerService.info(
+        'AlarmService initialized with ${_alarms.length} alarm(s) and ${_todos.length} todo(s).',
+      );
+    }
     _startMonitoring();
   }
 
@@ -238,21 +243,6 @@ class AlarmService {
       } catch (_) {}
       _currentAudioProcess = null;
     }
-    if (Platform.isLinux) {
-      try {
-        Process.run('pkill', ['-9', '-f', 'pw-play']);
-        Process.run('pkill', ['-9', '-f', 'ffplay']);
-        Process.run('pkill', ['-9', '-f', 'mpg123']);
-        Process.run('pkill', ['-9', '-f', 'paplay']);
-        Process.run('pkill', ['-9', '-f', 'aplay']);
-        Process.run('pkill', ['-9', '-f', 'cvlc']);
-        Process.run('pkill', ['-9', '-f', 'canberra-gtk-play']);
-      } catch (_) {}
-    } else if (Platform.isMacOS) {
-      try {
-        Process.run('pkill', ['-9', 'afplay']);
-      } catch (_) {}
-    }
   }
 
   static Future<Process?> _startAudioPlayer(
@@ -370,7 +360,11 @@ class AlarmService {
       try {
         await Process.run('osascript', [
           '-e',
-          'display notification "$body" with title "$title" sound name "Glass"',
+          'on run argv\n'
+              'display notification (item 2 of argv) with title (item 1 of argv) sound name "Glass"\n'
+              'end run',
+          title,
+          body,
         ]);
       } catch (e) {
         debugPrint('Failed macOS notification: $e');

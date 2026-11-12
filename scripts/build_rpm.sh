@@ -28,8 +28,8 @@ mkdir -p "$BUILD_DIR/SOURCES/bundle/lib/scripts"
 mkdir -p "$BUILD_DIR/SOURCES/bundle/lib/data"
 cp scripts/emoji_prediction_daemon.py scripts/omoji_paste.py "$BUILD_DIR/SOURCES/bundle/lib/scripts/"
 cp -r lib/data/* "$BUILD_DIR/SOURCES/bundle/lib/data/"
-if [ -f "lib/assets/imgs/app-logo.png" ]; then
-    cp "lib/assets/imgs/app-logo.png" "$BUILD_DIR/SOURCES/omoji.png"
+if [ -f "lib/assets/imgs/App logo (dark).png" ]; then
+    cp "lib/assets/imgs/App logo (dark).png" "$BUILD_DIR/SOURCES/omoji.png"
 fi
 
 # Create spec file

@@ -13,7 +13,9 @@ from pathlib import Path
 log_dir = Path.home() / '.config' / 'omoji'
 try:
     log_dir.mkdir(parents=True, exist_ok=True)
+    os.chmod(log_dir, 0o700)
     log_file = open(log_dir / 'daemon.log', 'a', encoding='utf-8')
+    os.chmod(log_dir / 'daemon.log', 0o600)
     sys.stdout = log_file
     sys.stderr = log_file
 except Exception:
@@ -26,8 +28,7 @@ try:
 except ImportError:
     HAS_EVDEV = False
 
-PORT = 18942
-HOST = '127.0.0.1'
+SOCKET_PATH = os.environ.get('OMOJI_PREDICTION_SOCKET')
 
 # Load emoji dictionary from emoji_map.dart
 def load_emoji_dictionary():
@@ -339,8 +340,21 @@ class EmojiPredictionDaemon:
             await asyncio.sleep(3)
 
     async def start(self):
-        server = await asyncio.start_server(self.handle_client, HOST, PORT)
-        print(f"[Daemon] Emoji prediction daemon listening on {HOST}:{PORT}")
+        if not SOCKET_PATH:
+            raise RuntimeError('OMOJI_PREDICTION_SOCKET is not configured')
+        socket_path = Path(SOCKET_PATH)
+        socket_path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+        os.chmod(socket_path.parent, 0o700)
+        try:
+            socket_path.unlink()
+        except FileNotFoundError:
+            pass
+        server = await asyncio.start_unix_server(
+            self.handle_client,
+            path=str(socket_path),
+        )
+        os.chmod(socket_path, 0o600)
+        print(f"[Daemon] Emoji prediction daemon listening on {socket_path}")
         asyncio.create_task(self.listen_keyboards())
         async with server:
             await server.serve_forever()

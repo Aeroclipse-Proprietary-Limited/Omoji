@@ -5,7 +5,7 @@ publish_to: 'none'
 version: 1.2.6+18
 
 environment:
-  sdk: ^3.12.2
+  sdk: ^3.13.0
 
 dependencies:
   flutter:
@@ -16,6 +16,7 @@ dependencies:
   screen_retriever: ^0.2.1
   hotkey_manager: ^0.2.3
   file_selector: ^1.0.3
+  tray_manager: ^0.7.0
 
 dev_dependencies:
   flutter_test:
@@ -26,12 +27,17 @@ flutter:
   uses-material-design: true
 
   assets:
-    - lib/assets/imgs/app-logo.jpg
-    - lib/assets/imgs/app-logo.png
+    - CHANGELOG.md
+    - lib/assets/imgs/App logo (dark).png
+    - lib/assets/imgs/app-logo (light).jpg
     - lib/assets/imgs/acc pic.jpg
+    - lib/assets/gifs/
 
   # Custom font configuration for Omoji color emoji rendering
   fonts:
+    - family: MeaCulpa
+      fonts:
+        - asset: lib/assets/font/App font (title)/MeaCulpa-Regular.ttf
     - family: NotoColorEmoji
       fonts:
         - asset: lib/assets/font/JetBrains_Mono,Noto_Color_Emoji/Noto_Color_Emoji/NotoColorEmoji-Regular.ttf

@@ -36,14 +36,10 @@ EOF
 chmod +x "${PKG_DIR}/usr/bin/omoji"
 
 # Copy icon files
-if [ -f "lib/assets/imgs/app-logo.png" ]; then
-    cp "lib/assets/imgs/app-logo.png" "${PKG_DIR}/usr/share/pixmaps/omoji.png"
-    cp "lib/assets/imgs/app-logo.png" "${PKG_DIR}/usr/share/icons/hicolor/256x256/apps/omoji.png"
-    cp "lib/assets/imgs/app-logo.png" "${PKG_DIR}/usr/share/icons/hicolor/scalable/apps/omoji.png"
-fi
-
-if [ -f "lib/assets/imgs/app-logo.jpg" ]; then
-    cp "lib/assets/imgs/app-logo.jpg" "${PKG_DIR}/usr/share/pixmaps/omoji.jpg"
+if [ -f "lib/assets/imgs/App logo (dark).png" ]; then
+    cp "lib/assets/imgs/App logo (dark).png" "${PKG_DIR}/usr/share/pixmaps/omoji.png"
+    cp "lib/assets/imgs/App logo (dark).png" "${PKG_DIR}/usr/share/icons/hicolor/256x256/apps/omoji.png"
+    cp "lib/assets/imgs/App logo (dark).png" "${PKG_DIR}/usr/share/icons/hicolor/scalable/apps/omoji.png"
 fi
 
 # Create desktop entry
