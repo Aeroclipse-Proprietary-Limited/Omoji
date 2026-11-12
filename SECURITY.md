@@ -1,5 +1,11 @@
 # Security Policy
 
+## Terms and Conditions
+
+By installing or using Omoji, you accept Aeroclipse Proprietary Limited's
+Terms and Conditions. If you do not agree, do not install or use Omoji. If
+Omoji is already installed, uninstall it.
+
 ## Supported Versions
 
 | Version  | Supported |

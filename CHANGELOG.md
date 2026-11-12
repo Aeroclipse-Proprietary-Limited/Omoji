@@ -2,41 +2,40 @@
 
 Notable changes to Omoji are recorded here.
 
-## [1.2.6-beta] - Unreleased
+## [Unreleased]
 
-- Added calendar import for iCalendar (`.ics`) files exported by Google Calendar,
-  Yahoo Calendar and other calendar apps, plus common calendar CSV exports.
-- Added a notes-only reading overview from the to-do details panel.
-- Added overdue event actions to reschedule by 24 hours or choose a custom date
-  and time.
-- Added a completion check button to every event and a Delayed filter for events
-  completed after their due time.
-- Added Accent Effects to optionally tint the app backgrounds with the selected
-  accent colour.
-- Removed local backup export and restore in preparation for cloud-managed
-  backups.
-- Changed the emoji prediction icon to distinguish it from Super Agents.
-- Added disabled Register / Sign up and Sign in buttons in Settings while
-  account features are being prepared.
-- Planned account access is strictly monetized and is intended to support cloud
-  backup of user data (including settings and clipboard data), syncing across
-  devices, and access to improved AI models from Omoji and recognized AI
-  companies. These account services are not available in this beta.
+### Changes since v1.2.5
 
-### Since v1.2.5
-
-- Added clipboard chat and AI-assisted emoji prediction features, with local or
-  cloud provider options in Settings.
-- Added backup export and import for settings, clipboard history, alarms,
-  to-dos, timers and stopwatch data.
-- Added update notifications based on GitHub Releases and the Snap Store.
-- Added donation links and full-version prompts for gated Clock tools and
-  custom alarm sounds.
-- Updated Linux packaging and installation scripts and expanded Linux/macOS
-  setup documentation.
-- Added PayPal support links and an ETH wallet-copy confirmation to Settings;
-  donations remain optional and separate from feature access.
-- Made Settings available in the free build while keeping custom alarm sounds
-  gated.
-- Added full-version prompts linked to GitHub Releases. The daily update check
-  sends no app usage or clipboard data.
+- Added Omoji Chat and AI-assisted emoji prediction, with local and cloud model
+  options in Settings.
+- Expanded the emoji catalog with a Symbols & Signs category, including caution,
+  warning, safety, traffic, information and directional symbols.
+- Added calendar import for iCalendar (`.ics`) and common calendar CSV files.
+  Import remains unavailable until an account is attached; Firebase sign-in is
+  still a placeholder.
+- Expanded to-do and event controls with notes, completion status, a Delayed
+  filter, and overdue rescheduling by 24 hours or a chosen date and time.
+- Added log-level filters and a `CHANGELOG.md` view to the existing Logs button.
+- Added an Animations switch and a Run at login option. When enabled, Omoji
+  starts hidden with a system tray menu for Exit, Private Mode, Snap Store
+  updates, and Chat. Chat is disabled unless Super Agents is enabled.
+- Improved clipboard and auto-paste handling across Linux, macOS and Windows,
+  including Linux Wayland and X11 fallback paths.
+- Added accent background effects, a sticky Settings header, app-version display,
+  and an update-available indicator linked to release information.
+- Added disabled account sign-in controls while the Firebase login flow is
+  pending. No account or licence authentication is implemented yet.
+- Added PayPal and ETH donation options and full-version prompts for gated Clock
+  tools and custom alarm sounds. Donations are optional and separate from access.
+- Updated application icons, Linux packaging and installation scripts, Linux and
+  macOS setup documentation, and Windows desktop build automation.
+- Added update checks using GitHub Releases and the Snap Store. The check sends
+  no clipboard or app-usage data.
+- Added local backup export and import for settings, clipboard history, alarms,
+  to-dos, timers and stopwatch data; later removed those controls in preparation
+  for future cloud-managed backups.
+- Hardened hotkey registration against command injection, passed alarm text to
+  macOS notifications as arguments, moved prediction-daemon communication to a
+  per-user Unix socket, and restricted settings, log and update-cache file
+  permissions on Unix.
+- Changed alarm shutdown to stop only the audio process started by Omoji.
