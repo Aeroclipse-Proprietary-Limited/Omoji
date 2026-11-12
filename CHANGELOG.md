@@ -13,8 +13,6 @@ These notes summarize changes in the current codebase compared with v1.2.5.
 - Added AI-assisted emoji prediction and expanded the emoji catalog, including
   recent Unicode additions and a Symbols & Signs category with caution, safety,
   traffic, information, mathematical, and directional symbols.
-- Added calendar import for iCalendar (`.ics`) and common calendar CSV files.
-  The import control remains gated until an account is attached.
 - Expanded to-do and event management with a notes reading view, event
   completion, a Delayed filter, and overdue rescheduling by 24 hours or a chosen
   date and time.
