@@ -4,7 +4,7 @@ Notable changes to Omoji are recorded here.
 
 ## [Unreleased]
 
-These notes summarize changes in the current codebase compared with v1.2.5.
+Changes in the current codebase compared with v1.2.5.
 
 ### Features
 
