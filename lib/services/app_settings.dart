@@ -72,6 +72,9 @@ class AppSettings {
     String? superAgentModelType,
     String? superAgentCloudProvider,
     String? superAgentApiKey,
+    String? superAgentRequestyModel,
+    String? superAgentModelOnCooldown,
+    int? superAgentModelCooldownUntilMs,
     bool? animationsEnabled,
     bool? runAtLogin,
   }) async {
@@ -206,6 +209,16 @@ class AppSettings {
       }
       if (superAgentApiKey != null) {
         current['superAgentApiKey'] = superAgentApiKey;
+      }
+      if (superAgentRequestyModel != null) {
+        current['superAgentRequestyModel'] = superAgentRequestyModel;
+      }
+      if (superAgentModelOnCooldown != null) {
+        current['superAgentModelOnCooldown'] = superAgentModelOnCooldown;
+      }
+      if (superAgentModelCooldownUntilMs != null) {
+        current['superAgentModelCooldownUntilMs'] =
+            superAgentModelCooldownUntilMs;
       }
       if (animationsEnabled != null) {
         current['animationsEnabled'] = animationsEnabled;

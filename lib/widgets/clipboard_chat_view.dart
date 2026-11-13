@@ -1,3 +1,7 @@
+import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:omoji/build_config.dart';
@@ -38,6 +42,10 @@ class _ClipboardChatViewState extends State<ClipboardChatView> {
   String _superAgentModelType = 'local';
   String _superAgentCloudProvider = 'OpenAI';
   String _superAgentApiKey = '';
+  String _superAgentRequestyModel = 'gemma-4-31b-it';
+  int? _googleGemmaCooldownUntilMs;
+  bool _isSending = false;
+  int _sessionGeneration = 0;
 
   @override
   void initState() {
@@ -56,6 +64,10 @@ class _ClipboardChatViewState extends State<ClipboardChatView> {
       _superAgentCloudProvider =
           settings['superAgentCloudProvider'] as String? ?? 'OpenAI';
       _superAgentApiKey = settings['superAgentApiKey'] as String? ?? '';
+      _superAgentRequestyModel =
+          settings['superAgentRequestyModel'] as String? ?? 'gemma-4-31b-it';
+      _googleGemmaCooldownUntilMs =
+          settings['superAgentModelCooldownUntilMs'] as int?;
     });
   }
 
@@ -111,53 +123,281 @@ class _ClipboardChatViewState extends State<ClipboardChatView> {
     if (_superAgentsEnabled &&
         _superAgentModelType == 'cloud' &&
         _superAgentApiKey.isEmpty) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Please configure your Cloud AI API key in Settings.',
-            ),
-          ),
-        );
-      }
+      _appendOmojiReply(
+        prompt,
+        'I can’t reach my cloud chat yet because there’s no API key saved. Add your ${_providerDisplayName} key in Settings, then try again.',
+      );
       return;
     }
 
-    if (!_quantumNetwork.isAvailable && !_superAgentsEnabled) return;
+    final useCloud = _superAgentsEnabled && _superAgentModelType == 'cloud';
+    if (useCloud &&
+        _superAgentCloudProvider == 'Gemini' &&
+        _googleGemmaCooldownUntilMs != null &&
+        _googleGemmaCooldownUntilMs! > DateTime.now().millisecondsSinceEpoch) {
+      _appendOmojiReply(
+        prompt,
+        'Something doesnt seem right with Google. Your time is too precious so I stopped waiting for a responce, I recommend coming back after an hour',
+      );
+      return;
+    }
+    if (useCloud && _attachments.isNotEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Cloud text chat does not support attachments yet.'),
+        ),
+      );
+      return;
+    }
+    if (useCloud &&
+        _superAgentCloudProvider != 'DeepSeek' &&
+        _superAgentCloudProvider != 'Gemini' &&
+        _superAgentCloudProvider != 'Requesty') {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Google AI Studio, DeepSeek, and Requesty chat are available so far.'),
+        ),
+      );
+      return;
+    }
+    if (!useCloud && !_quantumNetwork.isAvailable) return;
 
     final attachments = List<QuantumAttachment>.unmodifiable(_attachments);
+    final requestSession = _sessionGeneration;
     setState(() {
       widget.messages.add(ChatMessage(role: ChatRole.user, text: prompt));
       _promptController.clear();
       _attachments.clear();
+      _isSending = true;
     });
 
     try {
       final String reply;
-      if (_superAgentsEnabled && _superAgentModelType == 'cloud') {
-        // Simulated Cloud AI response using configured provider
-        await Future.delayed(const Duration(milliseconds: 600));
-        reply =
-            '[$_superAgentCloudProvider Super Agent] Received: "$prompt". (Cloud API connected successfully)';
+      if (useCloud) {
+        reply = await _requestCloudReply();
       } else {
         reply = await _quantumNetwork.generateReply(
           prompt: prompt,
           attachments: attachments,
         );
       }
-      if (!mounted) return;
+      if (!mounted || requestSession != _sessionGeneration) return;
       setState(() {
         widget.messages.add(ChatMessage(role: ChatRole.assistant, text: reply));
+        _isSending = false;
       });
     } catch (error) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Could not get a response from Omoji: $error'),
+      if (!mounted || requestSession != _sessionGeneration) return;
+      if (_shouldCooldownGoogleModel(error)) {
+        final cooldownUntil = DateTime.now()
+            .add(const Duration(hours: 1))
+            .millisecondsSinceEpoch;
+        await AppSettings.saveSettings(
+          superAgentModelOnCooldown: 'Gemma 4 31B IT (Google AI Studio)',
+          superAgentModelCooldownUntilMs: cooldownUntil,
+        );
+        if (!mounted) return;
+        _googleGemmaCooldownUntilMs = cooldownUntil;
+      }
+      setState(() {
+        widget.messages.add(
+          ChatMessage(
+            role: ChatRole.assistant,
+            text: _friendlyError(error, useCloud: useCloud),
           ),
         );
-      }
+        _isSending = false;
+      });
     }
+  }
+
+  void _appendOmojiReply(String prompt, String text) {
+    setState(() {
+      widget.messages.add(ChatMessage(role: ChatRole.user, text: prompt));
+      widget.messages.add(ChatMessage(role: ChatRole.assistant, text: text));
+      _promptController.clear();
+    });
+  }
+
+  String _friendlyError(Object error, {required bool useCloud}) {
+    final provider = useCloud ? _providerDisplayName : 'local chat';
+    final detail = error.toString().toLowerCase();
+    if (error is SocketException ||
+        error is HandshakeException ||
+        detail.contains('socketexception') ||
+        detail.contains('failed host lookup')) {
+      return 'I can’t reach $provider right now. Please check your internet connection and try again.';
+    }
+    if (_shouldCooldownGoogleModel(error)) {
+      return 'Something doesnt seem right with Google. Your time is too precious so I stopped waiting for a responce, I recommend coming back after an hour';
+    }
+    if (error is TimeoutException || detail.contains('timed out')) {
+      return 'I’m taking too long to get a reply from $provider. I stopped waiting after 18 seconds; please try again.';
+    }
+    if (detail.contains('high demand') ||
+        detail.contains('overloaded') ||
+        detail.contains('503')) {
+      return '$provider is busy right now because demand is high. Your key appears to be reaching the service; please try again in a little while.';
+    }
+    if (detail.contains('credit') ||
+        detail.contains('balance') ||
+        detail.contains('quota') ||
+        detail.contains('insufficient')) {
+      return 'I couldn’t answer because the $provider account appears to be out of credits or quota. Please check its balance, then try again.';
+    }
+    if (detail.contains('401') ||
+        detail.contains('403') ||
+        detail.contains('invalid api key') ||
+        detail.contains('authentication')) {
+      return 'I couldn’t sign in to $provider with the saved API key. Please check the key in Settings and try again.';
+    }
+    return 'I’m having trouble getting a reply from $provider right now. Please try again. (Details: ${error.toString().replaceFirst('Exception: ', '')})';
+  }
+
+  bool _shouldCooldownGoogleModel(Object error) {
+    if (_superAgentCloudProvider != 'Gemini') return false;
+    final detail = error.toString().toLowerCase();
+    return error is TimeoutException ||
+        detail.contains('high demand') ||
+        detail.contains('overloaded') ||
+        detail.contains('503');
+  }
+
+  String get _providerDisplayName => switch (_superAgentCloudProvider) {
+    'Gemini' => 'Gemma 4 31B IT (Google AI Studio)',
+    'Requesty' => 'Requesty ($_superAgentRequestyModel)',
+    _ => 'DeepSeek',
+  };
+
+  void _startNewSession() {
+    _sessionGeneration++;
+    setState(() {
+      widget.messages.clear();
+      _attachments.clear();
+      _promptController.clear();
+      _isSending = false;
+    });
+  }
+
+  Future<String> _requestCloudReply() async {
+    final isGoogleAiStudio = _superAgentCloudProvider == 'Gemini';
+    final isRequesty = _superAgentCloudProvider == 'Requesty';
+    final client = HttpClient()
+      ..connectionTimeout = const Duration(seconds: 8);
+    try {
+      return await _performCloudRequest(
+        client,
+        isGoogleAiStudio,
+        isRequesty,
+      ).timeout(
+        const Duration(seconds: 18),
+        onTimeout: () {
+          client.close(force: true);
+          throw TimeoutException(
+            'The chat request took longer than 18 seconds.',
+          );
+        },
+      );
+    } finally {
+      client.close(force: true);
+    }
+  }
+
+  Future<String> _performCloudRequest(
+    HttpClient client,
+    bool isGoogleAiStudio,
+    bool isRequesty,
+  ) async {
+    final request = await client.postUrl(
+      isGoogleAiStudio
+          ? Uri.https(
+              'generativelanguage.googleapis.com',
+              '/v1beta/models/gemma-4-31b-it:generateContent',
+            )
+          : Uri.https(
+              isRequesty ? 'router.requesty.ai' : 'api.deepseek.com',
+              isRequesty ? '/v1/chat/completions' : '/chat/completions',
+            ),
+    );
+    request.headers.contentType = ContentType.json;
+    if (isGoogleAiStudio) {
+      request.headers.set('x-goog-api-key', _superAgentApiKey);
+      request.write(jsonEncode({
+        'contents': [
+          for (final message in widget.messages)
+            {
+              'role': message.role == ChatRole.user ? 'user' : 'model',
+              'parts': [
+                {'text': message.text},
+              ],
+            },
+        ],
+        'generationConfig': {'maxOutputTokens': 512},
+      }));
+    } else {
+      request.headers.set(
+        HttpHeaders.authorizationHeader,
+        'Bearer $_superAgentApiKey',
+      );
+      request.write(jsonEncode({
+        'model': isRequesty ? _superAgentRequestyModel : 'deepseek-chat',
+        'messages': [
+          for (final message in widget.messages)
+            {
+              'role': message.role == ChatRole.user ? 'user' : 'assistant',
+              'content': message.text,
+            },
+        ],
+        'stream': false,
+        'max_tokens': 512,
+      }));
+    }
+    final response = await request.close();
+    final body = await utf8.decodeStream(response);
+    dynamic decoded;
+    try {
+      decoded = jsonDecode(body);
+    } on FormatException {
+      decoded = null;
+    }
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      final message = decoded is Map && decoded['error'] is Map
+          ? (decoded['error']['message'] as String? ?? 'Request failed')
+          : 'HTTP ${response.statusCode}';
+      throw HttpException('$_superAgentCloudProvider: $message');
+    }
+    final dynamic content;
+    if (isGoogleAiStudio) {
+      final candidates = decoded is Map ? decoded['candidates'] : null;
+      if (candidates is! List || candidates.isEmpty) {
+        throw const FormatException(
+          'Google AI Studio returned an empty response.',
+        );
+      }
+      final parts = candidates[0]['content']['parts'];
+      content = parts is List
+          ? parts
+                .whereType<Map>()
+                .map((part) => part['text'])
+                .whereType<String>()
+                .join()
+          : null;
+    } else {
+      if (decoded is! Map ||
+          decoded['choices'] is! List ||
+          (decoded['choices'] as List).isEmpty) {
+        throw FormatException(
+          '$_providerDisplayName returned an empty response.',
+        );
+      }
+      content = decoded['choices'][0]['message']['content'];
+    }
+    if (content is! String || content.trim().isEmpty) {
+      throw FormatException(
+        '$_superAgentCloudProvider returned an empty response.',
+      );
+    }
+    return content.trim();
   }
 
   @override
@@ -171,7 +411,6 @@ class _ClipboardChatViewState extends State<ClipboardChatView> {
         Row(
           children: [
             IconButton(
-              tooltip: 'Back to clipboard',
               onPressed: widget.onBack,
               icon: const Icon(Icons.arrow_back_rounded),
             ),
@@ -186,7 +425,10 @@ class _ClipboardChatViewState extends State<ClipboardChatView> {
               ),
             ),
             IconButton(
-              tooltip: 'Export chat as text',
+              onPressed: _startNewSession,
+              icon: const Icon(Icons.add_comment_outlined),
+            ),
+            IconButton(
               onPressed: widget.messages.isEmpty ? null : widget.onExport,
               icon: const Icon(Icons.save_alt_rounded),
             ),
@@ -230,8 +472,47 @@ class _ClipboardChatViewState extends State<ClipboardChatView> {
                 )
               : ListView.builder(
                   padding: const EdgeInsets.symmetric(vertical: 8),
-                  itemCount: widget.messages.length,
+                  itemCount: widget.messages.length + (_isSending ? 1 : 0),
                   itemBuilder: (context, index) {
+                    if (_isSending && index == widget.messages.length) {
+                      return Align(
+                        alignment: Alignment.centerLeft,
+                        child: Container(
+                          margin: const EdgeInsets.only(bottom: 10),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 9,
+                          ),
+                          decoration: BoxDecoration(
+                            color: isDark
+                                ? Colors.white.withValues(alpha: 0.06)
+                                : Colors.black.withValues(alpha: 0.05),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              SizedBox(
+                                width: 13,
+                                height: 13,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: textColor.withValues(alpha: 0.7),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                'Omoji is thinking…',
+                                style: TextStyle(
+                                  color: textColor,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    }
                     final message = widget.messages[index];
                     final isUser = message.role == ChatRole.user;
                     return Align(
@@ -281,7 +562,9 @@ class _ClipboardChatViewState extends State<ClipboardChatView> {
               Expanded(
                 child: Text(
                   _superAgentsEnabled
-                      ? 'Super Agents Active (${_superAgentModelType == 'local' ? 'Local Omoji' : 'Cloud: $_superAgentCloudProvider'}) - Chat is processed securely.'
+                      ? (_superAgentModelType == 'cloud'
+                            ? 'Cloud chat uses $_providerDisplayName. Messages are sent to that provider.'
+                            : 'Local Omoji chat is selected.')
                       : (_quantumNetwork.isAvailable
                             ? 'Chat is processed locally and is not saved automatically.'
                             : 'Quantum Network model integration is pending. Prompts and attachments are not sent or stored.'),
@@ -395,12 +678,10 @@ class _ClipboardChatViewState extends State<ClipboardChatView> {
             ),
             const SizedBox(width: 8),
             IconButton.filled(
-              tooltip: _quantumNetwork.isAvailable
-                  ? 'Send message'
-                  : 'Send (unavailable)',
-              onPressed:
-                  _quantumNetwork.isAvailable &&
-                      _promptController.text.trim().isNotEmpty
+              onPressed: !_isSending &&
+                      _promptController.text.trim().isNotEmpty &&
+                      ((_superAgentsEnabled && _superAgentModelType == 'cloud') ||
+                          _quantumNetwork.isAvailable)
                   ? _sendMessage
                   : null,
               icon: const Icon(Icons.send_rounded, size: 18),

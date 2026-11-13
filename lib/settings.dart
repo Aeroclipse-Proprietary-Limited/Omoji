@@ -44,6 +44,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
   String _superAgentModelType = 'local';
   String _superAgentCloudProvider = 'OpenAI';
   late TextEditingController _superAgentApiKeyController;
+  late TextEditingController _superAgentRequestyModelController;
+  String? _superAgentModelOnCooldown;
+  int? _superAgentModelCooldownUntilMs;
   bool _animationsEnabled = true;
   bool _runAtLogin = true;
   bool _hasUnsavedChanges = false;
@@ -54,6 +57,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _primaryTriggerController = TextEditingController(text: 'Super + .');
     _secondaryTriggerController = TextEditingController(text: 'Ctrl + Alt + O');
     _superAgentApiKeyController = TextEditingController();
+    _superAgentRequestyModelController = TextEditingController(
+      text: 'gemma-4-31b-it',
+    );
     _loadSettings();
   }
 
@@ -62,6 +68,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _primaryTriggerController.dispose();
     _secondaryTriggerController.dispose();
     _superAgentApiKeyController.dispose();
+    _superAgentRequestyModelController.dispose();
     AlarmService.killAudioProcess();
     super.dispose();
   }
@@ -99,6 +106,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
           settings['superAgentCloudProvider'] as String? ?? 'OpenAI';
       _superAgentApiKeyController.text =
           settings['superAgentApiKey'] as String? ?? '';
+      _superAgentRequestyModelController.text =
+          settings['superAgentRequestyModel'] as String? ?? 'gemma-4-31b-it';
+      _superAgentModelOnCooldown =
+          settings['superAgentModelOnCooldown'] as String?;
+      _superAgentModelCooldownUntilMs =
+          settings['superAgentModelCooldownUntilMs'] as int?;
       _animationsEnabled = settings['animationsEnabled'] as bool? ?? true;
       _runAtLogin = settings['runAtLogin'] as bool? ?? true;
 
@@ -357,6 +370,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _superAgentModelType = 'local';
       _superAgentCloudProvider = 'OpenAI';
       _superAgentApiKeyController.clear();
+      _superAgentRequestyModelController.text = 'gemma-4-31b-it';
+      _superAgentModelOnCooldown = null;
+      _superAgentModelCooldownUntilMs = null;
       _animationsEnabled = true;
       _runAtLogin = true;
       themeNotifier.value = ThemeMode.system;
@@ -441,6 +457,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
       superAgentModelType: _superAgentModelType,
       superAgentCloudProvider: _superAgentCloudProvider,
       superAgentApiKey: _superAgentApiKeyController.text.trim(),
+      superAgentRequestyModel:
+          _superAgentRequestyModelController.text.trim().isEmpty
+          ? 'gemma-4-31b-it'
+          : _superAgentRequestyModelController.text.trim(),
       animationsEnabled: _animationsEnabled,
       runAtLogin: _runAtLogin,
       primaryTrigger: primary,
@@ -603,6 +623,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cooldownUntil = _superAgentModelCooldownUntilMs == null
+        ? null
+        : DateTime.fromMillisecondsSinceEpoch(
+            _superAgentModelCooldownUntilMs!,
+          ).toLocal();
+    final isModelOnCooldown =
+        _superAgentModelOnCooldown != null &&
+        cooldownUntil != null &&
+        cooldownUntil.isAfter(DateTime.now());
     final textColor = isDark ? Colors.white : Colors.black87;
     final subtitleColor = isDark
         ? Colors.white.withValues(alpha: 0.7)
@@ -753,7 +782,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           ),
                         ),
                         IconButton(
-                          tooltip: 'Open Omoji logs',
                           onPressed: _showLogsDialog,
                           icon: const Icon(Icons.article_outlined, size: 18),
                           color: Theme.of(context).colorScheme.primary,
@@ -866,14 +894,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                   Color(0xFF2563EB), // Sapphire
                                   Color(0xFFD97706), // Gold
                                 ];
-                                const accentLabels = [
-                                  'Blood Red (Default)',
-                                  'Emerald Green',
-                                  'Purple',
-                                  'Sapphire',
-                                  'Gold',
-                                ];
-
                                 return Container(
                                   decoration: BoxDecoration(
                                     color: cardBg,
@@ -894,56 +914,53 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                         final isSelected =
                                             currentAccent == color;
 
-                                        return Tooltip(
-                                          message: accentLabels[idx],
-                                          child: GestureDetector(
-                                            onTap: () async {
-                                              accentColorNotifier.value = color;
-                                              setState(() {});
-                                              await AppSettings.saveSettings(
-                                                accentColorValue: color
-                                                    .toARGB32(),
-                                              );
-                                            },
-                                            child: AnimatedContainer(
-                                              duration: const Duration(
-                                                milliseconds: 200,
-                                              ),
-                                              width: 34,
-                                              height: 34,
-                                              decoration: BoxDecoration(
-                                                color: color,
-                                                shape: BoxShape.circle,
-                                                border: Border.all(
-                                                  color: isSelected
-                                                      ? Colors.white
-                                                      : Colors.transparent,
-                                                  width: 2.5,
-                                                ),
-                                                boxShadow: [
-                                                  BoxShadow(
-                                                    color: color.withValues(
-                                                      alpha: isSelected
-                                                          ? 0.6
-                                                          : 0.25,
-                                                    ),
-                                                    blurRadius: isSelected
-                                                        ? 10
-                                                        : 4,
-                                                    spreadRadius: isSelected
-                                                        ? 2
-                                                        : 0,
-                                                  ),
-                                                ],
-                                              ),
-                                              child: isSelected
-                                                  ? const Icon(
-                                                      Icons.check,
-                                                      color: Colors.white,
-                                                      size: 18,
-                                                    )
-                                                  : null,
+                                        return GestureDetector(
+                                          onTap: () async {
+                                            accentColorNotifier.value = color;
+                                            setState(() {});
+                                            await AppSettings.saveSettings(
+                                              accentColorValue: color
+                                                  .toARGB32(),
+                                            );
+                                          },
+                                          child: AnimatedContainer(
+                                            duration: const Duration(
+                                              milliseconds: 200,
                                             ),
+                                            width: 34,
+                                            height: 34,
+                                            decoration: BoxDecoration(
+                                              color: color,
+                                              shape: BoxShape.circle,
+                                              border: Border.all(
+                                                color: isSelected
+                                                    ? Colors.white
+                                                    : Colors.transparent,
+                                                width: 2.5,
+                                              ),
+                                              boxShadow: [
+                                                BoxShadow(
+                                                  color: color.withValues(
+                                                    alpha: isSelected
+                                                        ? 0.6
+                                                        : 0.25,
+                                                  ),
+                                                  blurRadius: isSelected
+                                                      ? 10
+                                                      : 4,
+                                                  spreadRadius: isSelected
+                                                      ? 2
+                                                      : 0,
+                                                ),
+                                              ],
+                                            ),
+                                            child: isSelected
+                                                ? const Icon(
+                                                    Icons.check,
+                                                    color: Colors.white,
+                                                    size: 18,
+                                                  )
+                                                : null,
                                           ),
                                         );
                                       },
@@ -1773,9 +1790,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                           ),
                                           DropdownMenuItem(
                                             value: 'Gemini',
-                                            child: Text(
-                                              'Google Gemini (Gemini Pro)',
-                                            ),
+                                            child: Text('Google AI Studio · Gemma 4 31B IT'),
                                           ),
                                           DropdownMenuItem(
                                             value: 'Anthropic',
@@ -1784,6 +1799,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                           DropdownMenuItem(
                                             value: 'DeepSeek',
                                             child: Text('DeepSeek R1 / V3'),
+                                          ),
+                                          DropdownMenuItem(
+                                            value: 'Requesty',
+                                            child: Text('Requesty · choose model below'),
                                           ),
                                         ],
                                         onChanged: (val) {
@@ -1794,9 +1813,36 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                           });
                                         },
                                       ),
+                                      if (isModelOnCooldown) ...[
+                                        const SizedBox(height: 8),
+                                        Container(
+                                          width: double.infinity,
+                                          padding: const EdgeInsets.all(10),
+                                          decoration: BoxDecoration(
+                                            color: Colors.orange.withValues(
+                                              alpha: 0.12,
+                                            ),
+                                            borderRadius: BorderRadius.circular(
+                                              8,
+                                            ),
+                                          ),
+                                          child: Text(
+                                            '${_superAgentModelOnCooldown} is on cooldown until ${cooldownUntil!.hour.toString().padLeft(2, '0')}:${cooldownUntil.minute.toString().padLeft(2, '0')}. You can switch providers while it cools down.',
+                                            style: TextStyle(
+                                              color: textColor,
+                                              fontSize: 11,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
                                       const SizedBox(height: 10),
                                       Text(
-                                        'API Key',
+                                        _superAgentCloudProvider == 'Gemini'
+                                            ? 'Google AI Studio API Key'
+                                            : _superAgentCloudProvider ==
+                                                  'Requesty'
+                                            ? 'Requesty API Key'
+                                            : 'API Key',
                                         style: TextStyle(
                                           color: subtitleColor,
                                           fontSize: 12,
@@ -1811,7 +1857,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                           fontSize: 13,
                                         ),
                                         decoration: InputDecoration(
-                                          hintText: 'Enter your API key...',
+                                          hintText: _superAgentCloudProvider ==
+                                                  'Gemini'
+                                              ? 'Enter your Google AI Studio key...'
+                                              : _superAgentCloudProvider ==
+                                                    'Requesty'
+                                              ? 'Enter your Requesty key...'
+                                              : 'Enter your API key...',
                                           isDense: true,
                                           border: OutlineInputBorder(
                                             borderRadius: BorderRadius.circular(
@@ -1830,6 +1882,62 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                           });
                                         },
                                       ),
+                                      if (_superAgentCloudProvider ==
+                                          'Gemini') ...[
+                                        const SizedBox(height: 6),
+                                        Text(
+                                          'Use a key from Google AI Studio. Gemma 4 API usage is currently listed as free; rate limits apply.',
+                                          style: TextStyle(
+                                            color: subtitleColor,
+                                            fontSize: 11,
+                                          ),
+                                        ),
+                                      ],
+                                      if (_superAgentCloudProvider ==
+                                          'Requesty') ...[
+                                        const SizedBox(height: 12),
+                                        Text(
+                                          'Requesty model ID',
+                                          style: TextStyle(
+                                            color: subtitleColor,
+                                            fontSize: 12,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 6),
+                                        TextField(
+                                          controller:
+                                              _superAgentRequestyModelController,
+                                          style: TextStyle(
+                                            color: textColor,
+                                            fontSize: 13,
+                                          ),
+                                          decoration: InputDecoration(
+                                            hintText:
+                                                'e.g. gemma-4-31b-it or provider/model',
+                                            isDense: true,
+                                            border: OutlineInputBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(8),
+                                            ),
+                                            contentPadding:
+                                                const EdgeInsets.symmetric(
+                                                  horizontal: 12,
+                                                  vertical: 10,
+                                                ),
+                                          ),
+                                          onChanged: (_) => setState(() {
+                                            _hasUnsavedChanges = true;
+                                          }),
+                                        ),
+                                        const SizedBox(height: 6),
+                                        Text(
+                                          'Paste a model ID from Requesty’s Model Library. Only models marked Free are zero-cost; a model ID may also select paid usage.',
+                                          style: TextStyle(
+                                            color: subtitleColor,
+                                            fontSize: 11,
+                                          ),
+                                        ),
+                                      ],
                                     ],
                                   ],
                                 ],
@@ -2073,8 +2181,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                               : textColor.withValues(
                                                   alpha: 0.3,
                                                 ),
-                                          tooltip:
-                                              'Reset to Default System Sound',
                                           onPressed:
                                               _customAlarmSoundPath == null
                                               ? null
@@ -2409,7 +2515,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                                   ),
                                                 ),
                                                 IconButton(
-                                                  tooltip: 'Shut Omoji down',
                                                   icon: const Icon(
                                                     Icons
                                                         .power_settings_new_rounded,

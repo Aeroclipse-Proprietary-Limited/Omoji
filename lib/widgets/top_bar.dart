@@ -88,46 +88,37 @@ class _TopBarState extends State<TopBar> with TickerProviderStateMixin {
       children: [
         AnimatedBuilder(
           animation: _pulseController,
-          builder: (context, _) => Tooltip(
-            message: hasUpdate
-                ? _showVersion
-                      ? 'Update available — Revert to Omoji'
-                      : 'Update available — Show version'
-                : _showVersion
-                ? 'Revert to Omoji'
-                : 'Show version',
-            child: InkWell(
-              onTap: _toggleTitle,
-              onLongPress: hasUpdate ? () => _openReleases(context) : null,
-              borderRadius: BorderRadius.circular(6),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 2),
-                child: RotationTransition(
-                  turns: _spinTurns,
-                  child: Text(
-                    title,
-                    style: TextStyle(
-                      color: textColor,
-                      fontSize: 24,
-                      fontFamily: 'MeaCulpa',
-                      fontWeight: FontWeight.bold,
-                      shadows: hasUpdate
-                          ? [
-                              Shadow(
-                                color: Theme.of(
-                                  context,
-                                ).colorScheme.primary.withValues(alpha: 0.85),
-                                blurRadius: _glowBlur.value,
-                              ),
-                              Shadow(
-                                color: Theme.of(
-                                  context,
-                                ).colorScheme.primary.withValues(alpha: 0.55),
-                                blurRadius: _glowBlur.value * 1.5,
-                              ),
-                            ]
-                          : null,
-                    ),
+          builder: (context, _) => InkWell(
+            onTap: _toggleTitle,
+            onLongPress: hasUpdate ? () => _openReleases(context) : null,
+            borderRadius: BorderRadius.circular(6),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 2),
+              child: RotationTransition(
+                turns: _spinTurns,
+                child: Text(
+                  title,
+                  style: TextStyle(
+                    color: textColor,
+                    fontSize: 24,
+                    fontFamily: 'MeaCulpa',
+                    fontWeight: FontWeight.bold,
+                    shadows: hasUpdate
+                        ? [
+                            Shadow(
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.primary.withValues(alpha: 0.85),
+                              blurRadius: _glowBlur.value,
+                            ),
+                            Shadow(
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.primary.withValues(alpha: 0.55),
+                              blurRadius: _glowBlur.value * 1.5,
+                            ),
+                          ]
+                        : null,
                   ),
                 ),
               ),
