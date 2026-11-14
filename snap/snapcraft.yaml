@@ -18,7 +18,7 @@ description: |
 
   Found a bug or have an idea? Open an issue on GitHub; every report is read.
 
-license: proprietary
+license: GPL-3.0-only
 contact: mailto:godlyttn@outlook.com
 website: https://aeroclipse-bw.web.app
 source-code: https://github.com/Aeroclipse-Proprietary-Limited/Omoji
@@ -35,8 +35,8 @@ apps:
     # The gnome extension already provides desktop, desktop-legacy,
     # wayland and x11, so only list what it doesn't cover.
     plugs:
-      - audio-playback   # alarm / timer sounds
-      - network          # remove if nothing needs it; fewer plugs = more trust
+      - audio-playback
+      - network
 
 parts:
   omoji-app:
@@ -54,10 +54,15 @@ parts:
       - libxi-dev
       - libkeybinder-3.0-dev
     stage-packages:
-      - python3          # drop if the bundled scripts don't need it (saves size)
+      - python3
       - libkeybinder-3.0-0
     override-build: |
-      export DART_DEFINES="$(printf 'OMOJI_DEVELOPER_BUILD=false' | base64 -w0)"
+      export DART_DEFINES="$(
+        printf '%s' 'OMOJI_DEVELOPER_BUILD=false' | base64 -w0
+      ),$(
+        printf '%s' 'OMOJI_EMOJIS_UNLOCKED=false' | base64 -w0
+      )"
+      rm -rf "$CRAFT_PART_BUILD/build"
       craftctl default
 
       mkdir -p "$CRAFT_PART_INSTALL/lib/scripts" "$CRAFT_PART_INSTALL/lib/data"

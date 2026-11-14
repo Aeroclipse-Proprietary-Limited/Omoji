@@ -36,8 +36,8 @@ Changes in the current codebase compared with v1.2.5.
 - Added PayPal and ETH donation links and an ETH wallet-copy confirmation.
   Donations are optional and separate from feature access.
 - Made Settings available in free builds while keeping selected features gated.
-- Added daily update checks against GitHub Releases and the Snap Store. The
-  check sends no clipboard contents or app-usage data.
+- Added daily update checks against GitHub Releases. The check sends no
+  clipboard contents or app-usage data.
 - Improved clipboard and auto-paste handling across Linux, macOS, and Windows,
   with Linux Wayland and X11 fallback paths.
 

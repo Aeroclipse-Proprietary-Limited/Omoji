@@ -35,7 +35,7 @@ void main() {
     expect(find.text('Omoji'), findsOneWidget);
   });
 
-  testWidgets('update title toggles the available version and keeps glowing', (
+  testWidgets('update title toggles the installed version and keeps glowing', (
     tester,
   ) async {
     UpdateCheckService.latestVersion.value = '1.2.7';
@@ -58,7 +58,7 @@ void main() {
     expect(find.text('Omoji'), findsOneWidget);
     await tester.tap(find.text('Omoji'));
     await tester.pump(const Duration(milliseconds: 300));
-    expect(find.text('v1.2.7'), findsOneWidget);
+    expect(find.text('v$omojiVersion'), findsOneWidget);
     expect(
       tester
           .widget<RotationTransition>(
@@ -73,7 +73,7 @@ void main() {
     );
 
     await tester.pump(const Duration(milliseconds: 1200));
-    expect(find.text('v1.2.7'), findsOneWidget);
+    expect(find.text('v$omojiVersion'), findsOneWidget);
     expect(
       tester
           .widget<RotationTransition>(
@@ -88,7 +88,7 @@ void main() {
     );
     expect(UpdateCheckService.updateAvailable.value, isTrue);
 
-    await tester.tap(find.text('v1.2.7'));
+    await tester.tap(find.text('v$omojiVersion'));
     await tester.pump(const Duration(milliseconds: 100));
     expect(find.text('Omoji'), findsOneWidget);
     expect(UpdateCheckService.updateAvailable.value, isTrue);

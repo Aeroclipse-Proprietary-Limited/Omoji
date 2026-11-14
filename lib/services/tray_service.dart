@@ -63,9 +63,18 @@ class TrayService {
 
     final updateItem = _item('Check for updates', MenuItemType.normal);
     updateItem.addListener((event) {
-      if (event is MenuItemClickedEvent) _openSnapStore();
+      if (event is MenuItemClickedEvent) _openGitHubReleases();
     });
     menu.addItem(updateItem);
+
+    final snapStoreItem = _item(
+      'Get Omoji from Snap Store',
+      MenuItemType.normal,
+    );
+    snapStoreItem.addListener((event) {
+      if (event is MenuItemClickedEvent) _openSnapStore();
+    });
+    menu.addItem(snapStoreItem);
 
     final chatItem = _item('Chat', MenuItemType.normal);
     _chatItem = chatItem;
@@ -98,15 +107,22 @@ class TrayService {
     _chatItem?.isEnabled = enabled;
   }
 
+  static Future<void> _openGitHubReleases() async {
+    const releasesUrl =
+        'https://github.com/Aeroclipse-Proprietary-Limited/Omoji/releases';
+    await _openUrl(releasesUrl);
+  }
+
   static Future<void> _openSnapStore() async {
+    await _openUrl('https://snapcraft.io/omoji');
+  }
+
+  static Future<void> _openUrl(String url) async {
     final command = Platform.isMacOS
-        ? ('open', ['https://snapcraft.io/omoji'])
+        ? ('open', [url])
         : Platform.isWindows
-        ? (
-            'rundll32',
-            ['url.dll,FileProtocolHandler', 'https://snapcraft.io/omoji'],
-          )
-        : ('xdg-open', ['https://snapcraft.io/omoji']);
+        ? ('rundll32', ['url.dll,FileProtocolHandler', url])
+        : ('xdg-open', [url]);
     try {
       await Process.run(command.$1, command.$2);
     } on ProcessException {

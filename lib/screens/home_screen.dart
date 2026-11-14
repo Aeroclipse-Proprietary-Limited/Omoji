@@ -42,6 +42,9 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
   static const MethodChannel _windowChannel = MethodChannel(
     'com.aeroclipse.omoji/window',
   );
+  static const Duration _contentTransitionDuration = Duration(
+    milliseconds: 150,
+  );
 
   final TextEditingController _searchController = TextEditingController();
   late final FocusNode _focusNode;
@@ -1260,6 +1263,7 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
                           const SizedBox(height: 12),
                           TabSwitcher(
                             selectedTab: _selectedTab,
+                            animationsEnabled: _animationsEnabled,
                             onTabChanged: (tab) {
                               if (tab == 'clock' && !isDeveloperBuild) {
                                 _showClockUpgradeDialog();
@@ -1357,70 +1361,101 @@ class _OmojiHomeScreenState extends State<OmojiHomeScreen> with WindowListener {
                         ],
                         const SizedBox(height: 16),
                         Expanded(
-                          child: _isChatMode
-                              ? ClipboardChatView(
-                                  initialPrompt: _chatInitialPrompt,
-                                  messages: _chatMessages,
-                                  onBack: () {
-                                    setState(() {
-                                      _isChatMode = false;
-                                    });
-                                    _focusNode.requestFocus();
-                                  },
-                                  onExport: _exportChat,
-                                  onAttachmentPickerChanged:
-                                      _setAttachmentPickerOpen,
-                                  onPurchaseLicense: _openPlansPage,
-                                )
-                              : _selectedTab == 'clock'
-                              ? ClockView(
-                                  alarms: _alarms,
-                                  onAlarmsChanged: (updated) {
-                                    setState(() {
-                                      _alarms = updated;
-                                    });
-                                  },
-                                  todos: _todos,
-                                  onTodosChanged: (updated) {
-                                    setState(() {
-                                      _todos = updated;
-                                    });
-                                  },
-                                )
-                              : _selectedTab == 'emojis'
-                              ? EmojiView(
-                                  searchQuery: _searchQuery,
-                                  recentEmojis: _recentEmojis,
-                                  onSelectEmoji: _handleEmojiSelection,
-                                )
-                              : ClipboardView(
-                                  items: _filteredClipboardHistory(),
-                                  searchQuery: _searchQuery,
-                                  privateMode: _privateMode,
-                                  editingIndex: _editingIndex,
-                                  editController: _editController,
-                                  searchFocusNode: _focusNode,
-                                  onSelectText: _handleClipboardSelection,
-                                  onSaveEdit: _saveEdit,
-                                  onStartEdit: (idx) {
-                                    setState(() {
-                                      _editingIndex = idx;
-                                      _editController.text =
-                                          _filteredClipboardHistory()[idx].text;
-                                    });
-                                  },
-                                  onTogglePin: _togglePin,
-                                  onDeleteItem: _deleteItem,
-                                  onTogglePrivateMode: (val) {
-                                    setState(() {
-                                      _privateMode = val;
-                                    });
-                                    trayPrivateModeNotifier.value = val;
-                                    AppSettings.saveSettings(privateMode: val);
-                                  },
-                                  onClearHistory: _clearHistory,
-                                  onStartChat: _startClipboardChat,
+                          child: AnimatedSwitcher(
+                            duration: _animationsEnabled
+                                ? _contentTransitionDuration
+                                : Duration.zero,
+                            reverseDuration: _animationsEnabled
+                                ? _contentTransitionDuration
+                                : Duration.zero,
+                            transitionBuilder: (child, animation) {
+                              final easedAnimation = animation.drive(
+                                CurveTween(curve: Curves.easeInOutCubic),
+                              );
+                              return FadeTransition(
+                                opacity: easedAnimation,
+                                child: SlideTransition(
+                                  position: Tween<Offset>(
+                                    begin: const Offset(0.015, 0),
+                                    end: Offset.zero,
+                                  ).animate(easedAnimation),
+                                  child: child,
                                 ),
+                              );
+                            },
+                            child: KeyedSubtree(
+                              key: ValueKey(
+                                _isChatMode ? 'chat' : _selectedTab,
+                              ),
+                              child: _isChatMode
+                                  ? ClipboardChatView(
+                                      initialPrompt: _chatInitialPrompt,
+                                      messages: _chatMessages,
+                                      onBack: () {
+                                        setState(() {
+                                          _isChatMode = false;
+                                        });
+                                        _focusNode.requestFocus();
+                                      },
+                                      onExport: _exportChat,
+                                      onAttachmentPickerChanged:
+                                          _setAttachmentPickerOpen,
+                                      onPurchaseLicense: _openPlansPage,
+                                    )
+                                  : _selectedTab == 'clock'
+                                  ? ClockView(
+                                      alarms: _alarms,
+                                      onAlarmsChanged: (updated) {
+                                        setState(() {
+                                          _alarms = updated;
+                                        });
+                                      },
+                                      todos: _todos,
+                                      onTodosChanged: (updated) {
+                                        setState(() {
+                                          _todos = updated;
+                                        });
+                                      },
+                                    )
+                                  : _selectedTab == 'emojis'
+                                  ? EmojiView(
+                                      searchQuery: _searchQuery,
+                                      recentEmojis: _recentEmojis,
+                                      onSelectEmoji: _handleEmojiSelection,
+                                    )
+                                  : ClipboardView(
+                                      items: _filteredClipboardHistory(),
+                                      searchQuery: _searchQuery,
+                                      privateMode: _privateMode,
+                                      editingIndex: _editingIndex,
+                                      editController: _editController,
+                                      searchFocusNode: _focusNode,
+                                      onSelectText: _handleClipboardSelection,
+                                      onSaveEdit: _saveEdit,
+                                      onStartEdit: (idx) {
+                                        setState(() {
+                                          _editingIndex = idx;
+                                          _editController.text =
+                                              _filteredClipboardHistory()[idx]
+                                                  .text;
+                                        });
+                                      },
+                                      onTogglePin: _togglePin,
+                                      onDeleteItem: _deleteItem,
+                                      onTogglePrivateMode: (val) {
+                                        setState(() {
+                                          _privateMode = val;
+                                        });
+                                        trayPrivateModeNotifier.value = val;
+                                        AppSettings.saveSettings(
+                                          privateMode: val,
+                                        );
+                                      },
+                                      onClearHistory: _clearHistory,
+                                      onStartChat: _startClipboardChat,
+                                    ),
+                            ),
+                          ),
                         ),
                       ],
                     ),

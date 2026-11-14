@@ -79,10 +79,7 @@ class _TopBarState extends State<TopBar> with TickerProviderStateMixin {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final textColor = isDark ? Colors.white : Colors.black87;
     final hasUpdate = UpdateCheckService.updateAvailable.value;
-    final displayedVersion = hasUpdate
-        ? UpdateCheckService.latestVersion.value ?? omojiVersion
-        : omojiVersion;
-    final title = _showVersion ? 'v$displayedVersion' : 'Omoji';
+    final title = _showVersion ? 'v$omojiVersion' : 'Omoji';
 
     return Row(
       children: [
@@ -106,15 +103,13 @@ class _TopBarState extends State<TopBar> with TickerProviderStateMixin {
                     shadows: hasUpdate
                         ? [
                             Shadow(
-                              color: Theme.of(
-                                context,
-                              ).colorScheme.primary.withValues(alpha: 0.85),
+                              color: Theme.of(context).colorScheme.primary
+                                  .withValues(alpha: 0.85),
                               blurRadius: _glowBlur.value,
                             ),
                             Shadow(
-                              color: Theme.of(
-                                context,
-                              ).colorScheme.primary.withValues(alpha: 0.55),
+                              color: Theme.of(context).colorScheme.primary
+                                  .withValues(alpha: 0.55),
                               blurRadius: _glowBlur.value * 1.5,
                             ),
                           ]

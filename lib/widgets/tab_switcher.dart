@@ -4,16 +4,23 @@ import 'package:flutter/material.dart';
 import 'package:omoji/build_config.dart';
 
 class TabSwitcher extends StatelessWidget {
+  static const _transitionDuration = Duration(milliseconds: 150);
+
   final String selectedTab;
+  final bool animationsEnabled;
   final ValueChanged<String> onTabChanged;
   final FocusNode searchFocusNode;
 
   const TabSwitcher({
     super.key,
     required this.selectedTab,
+    required this.animationsEnabled,
     required this.onTabChanged,
     required this.searchFocusNode,
   });
+
+  Duration get _duration =>
+      animationsEnabled ? _transitionDuration : Duration.zero;
 
   Widget _buildTabButton({
     required BuildContext context,
@@ -43,34 +50,45 @@ class TabSwitcher extends StatelessWidget {
             });
           },
           borderRadius: BorderRadius.circular(10),
-          child: Container(
+          child: AnimatedContainer(
+            duration: _duration,
+            curve: Curves.easeOutCubic,
             decoration: BoxDecoration(
               color: isActive ? activeBg : inactiveBg,
               border: Border.all(
-                  color: isActive
-                      ? Theme.of(context).colorScheme.primary
-                      : borderColor),
+                color: isActive
+                    ? Theme.of(context).colorScheme.primary
+                    : borderColor,
+              ),
               borderRadius: BorderRadius.circular(10),
             ),
             padding: const EdgeInsets.symmetric(vertical: 8),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(
-                  icon,
-                  size: 16,
-                  color: isActive
-                      ? Colors.white
-                      : (isDark ? Colors.white70 : Colors.black54),
+                AnimatedSwitcher(
+                  duration: _duration,
+                  switchInCurve: Curves.easeOutCubic,
+                  switchOutCurve: Curves.easeInCubic,
+                  child: Icon(
+                    icon,
+                    key: ValueKey(isActive),
+                    size: 16,
+                    color: isActive
+                        ? Colors.white
+                        : (isDark ? Colors.white70 : Colors.black54),
+                  ),
                 ),
                 const SizedBox(width: 6),
-                Text(
-                  label,
+                AnimatedDefaultTextStyle(
+                  duration: _duration,
+                  curve: Curves.easeOutCubic,
                   style: TextStyle(
                     color: isActive ? Colors.white : textColor,
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
                   ),
+                  child: Text(label),
                 ),
               ],
             ),
@@ -103,7 +121,9 @@ class TabSwitcher extends StatelessWidget {
         _buildTabButton(
           context: context,
           label: 'Clock',
-          icon: isDeveloperBuild ? Icons.access_time_rounded : Icons.lock_outline,
+          icon: isDeveloperBuild
+              ? Icons.access_time_rounded
+              : Icons.lock_outline,
           isActive: selectedTab == 'clock',
           onTap: () => onTabChanged('clock'),
         ),

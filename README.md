@@ -33,10 +33,10 @@ sudo dnf install ./omoji-1.2.5-1.x86_64.rpm
 
 There's more inside — explore at your own pace.
 
-Omoji checks GitHub Releases and the Snap Store once per day for public version
-information. When an update is available, the app title glows and links to
-GitHub Releases. This check does not send clipboard contents or app usage data;
-the services do receive ordinary connection metadata, such as your IP address.
+Omoji checks GitHub Releases once per day for the latest published release tag.
+When a newer version is available, the app title glows and links to GitHub
+Releases. This check does not send clipboard contents or app usage data; GitHub
+receives ordinary connection metadata, such as your IP address.
 
 ---
 

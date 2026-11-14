@@ -11,6 +11,7 @@ void main() {
 
     test('normalizes tags and ignores build metadata', () {
       expect(UpdateCheckService.isVersionNewer('v1.2.6', '1.2.5+18'), isTrue);
+      expect(UpdateCheckService.isVersionNewer('v1.2.7', '1.2.6'), isTrue);
       expect(UpdateCheckService.isVersionNewer('1.2.6+1', '1.2.6+2'), isFalse);
     });
 
